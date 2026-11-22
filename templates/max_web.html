@@ -2,20 +2,20 @@
 {% block title %}MAX Web — Email Bridge{% endblock %}
 {% block content %}
 <h1>MAX Web</h1>
-<p class="muted">Подключение личного аккаунта MAX через отдельный браузерный процесс.</p>
+<p class="muted">Интерактивный браузер Chromium с постоянной авторизацией MAX.</p>
 
 <section class="panel">
     <h2>Состояние браузера</h2>
     {% if browser_status.running %}
         <p><span class="tag ok">Браузер запущен</span></p>
     {% else %}
-        <p><span class="tag">Браузер не запущен</span></p>
+        <p><span class="tag">Браузер ожидает запуска</span></p>
     {% endif %}
     <p>{{ browser_status.message or 'Состояние пока неизвестно' }}</p>
     {% if browser_status.title %}
         <p class="muted small">Страница: {{ browser_status.title }}</p>
     {% endif %}
-    {% if browser_status.authenticated_guess is defined %}
+    {% if browser_status.authenticated_guess is defined and browser_status.authenticated_guess is not none %}
         <p>Предварительная оценка входа:
             <span class="tag {{ 'ok' if browser_status.authenticated_guess else '' }}">
                 {{ 'Похоже, вход выполнен' if browser_status.authenticated_guess else 'Нужна авторизация' }}
@@ -29,7 +29,7 @@
         <form method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="open">
-            <button type="submit">Открыть MAX Web / обновить QR</button>
+            <button type="submit">Открыть MAX Web</button>
         </form>
         <form method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -37,23 +37,28 @@
             <button class="secondary" type="submit">Проверить интерфейс MAX</button>
         </form>
     </div>
-    <p class="muted small">После команды подождите несколько секунд и обновите эту страницу.</p>
+    <p class="muted small">После запуска экран браузера появится ниже. Профиль MAX сохраняется между перезапусками службы.</p>
 </section>
 
-{% if screenshot_exists %}
 <section class="panel">
-    <h2>Экран MAX Web</h2>
-    <img src="{{ url_for('max_web_qr') }}?v={{ browser_status.updated_at or '0' }}"
-         alt="Экран MAX Web"
-         style="display:block;width:100%;max-width:800px;border-radius:12px;border:1px solid var(--line)">
-    <p class="muted small">Если отображается QR-код, отсканируйте его приложением MAX на телефоне.</p>
+    <h2>Интерактивный экран браузера</h2>
+    <p class="small">Для подключения используйте пароль VNC:</p>
+    <p><code style="font-size:18px;letter-spacing:2px">{{ vnc_password }}</code></p>
+    <div style="width:100%;height:min(75vh,850px);min-height:520px;background:#080d18;border:1px solid var(--line);border-radius:12px;overflow:hidden">
+        <iframe
+            title="Удалённый браузер MAX"
+            src="http://{{ vnc_host }}:6080/vnc.html?host={{ vnc_host }}&amp;port=6080&amp;path=websockify&amp;autoconnect=true&amp;resize=scale"
+            style="width:100%;height:100%;border:0"
+            allow="clipboard-read; clipboard-write"
+        ></iframe>
+    </div>
+    <p class="muted small">Если экран не подключается, проверьте доступность TCP-порта 6080 в firewall и обновите страницу.</p>
 </section>
-{% endif %}
 
 {% if diagnostics %}
 <section class="panel">
     <h2>Диагностика интерфейса</h2>
-    <p class="muted small">Собраны только подписи и атрибуты элементов управления. Текст переписки не сохраняется.</p>
+    <p class="muted small">Собираются только технические атрибуты элементов управления. Текст переписки и введённые значения не сохраняются.</p>
     <p class="small">Страница: {{ diagnostics.title }} · {{ diagnostics.url }}</p>
     <p class="small">Проверено: {{ diagnostics.checked_at }}</p>
     {% if diagnostics.controls %}
@@ -65,7 +70,7 @@
                 <tr>
                     <td>{{ item.tag }}</td>
                     <td>{{ item.role }}</td>
-                    <td>{{ item.aria or item.title or item.text }}</td>
+                    <td>{{ item.aria or item.title }}</td>
                     <td>{{ item.placeholder }}</td>
                 </tr>
             {% endfor %}
