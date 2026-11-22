@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}MAX Web — Email Bridge{% endblock %}
+{% block content %}
+<h1>MAX Web</h1>
+<p class="muted">Подключение личного аккаунта MAX через браузер.</p>
+
+<section class="panel">
+    <h2>Авторизация</h2>
+    <p class="muted">
+        Нажмите кнопку, чтобы открыть MAX Web и получить QR-код.
+        Затем отсканируйте его в приложении MAX на телефоне.
+    </p>
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit">Открыть MAX Web / обновить QR</button>
+    </form>
+</section>
+
+{% if screenshot_exists %}
+<section class="panel">
+    <h2>Экран MAX Web</h2>
+    <img src="{{ url_for('max_web_qr') }}" alt="Экран авторизации MAX Web"
+         style="display:block;width:100%;max-width:800px;border-radius:12px;border:1px solid var(--line)">
+    <p class="muted small">Если QR-код не появился, нажмите обновить QR.</p>
+</section>
+{% endif %}
+{% endblock %}
