@@ -8,7 +8,10 @@ from dotenv import load_dotenv
 
 from config import Config
 from models import db, Settings, Rule, DeliveryLog, ProcessedMail
-from max_web import (\n    queue_browser_start, queue_browser_inspection,\n    read_browser_status, read_browser_diagnostics, get_screenshot_path,\n)
+from max_web import (
+    queue_browser_start, queue_browser_inspection,
+    read_browser_status, read_browser_diagnostics, get_screenshot_path,
+)
 
 csrf = CSRFProtect()
 
