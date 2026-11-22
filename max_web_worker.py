@@ -98,7 +98,6 @@ def inspect_page(page):
         "url": page.url,
         "title": page.title(),
         "authenticated_guess": authenticated,
-        "body_preview": " ".join(body_text.split())[:500],
         "controls": items,
     }
     _atomic_json_write(DIAGNOSTICS_PATH, payload)
