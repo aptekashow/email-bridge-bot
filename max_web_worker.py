@@ -124,6 +124,8 @@ def inspect_page(page):
 def main():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    os.chmod(DATA_DIR, 0o700)
+    os.chmod(PROFILE_DIR, 0o700)
     context = None
     page = None
     last_screenshot = 0.0
