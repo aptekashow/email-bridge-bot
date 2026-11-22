@@ -92,7 +92,7 @@ def inspect_page(page):
                 aria: el.getAttribute('aria-label') || '',
                 title: el.getAttribute('title') || '',
                 placeholder: el.getAttribute('placeholder') || '',
-                text: (el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button') ? (el.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 100) : ''
+                // Do not persist innerText: clickable chat rows may contain message previews.
             })""")
             if any(item.values()):
                 items.append(item)
