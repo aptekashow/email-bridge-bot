@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from config import Config
 from models import db, Settings, Rule, DeliveryLog, ProcessedMail
-from max_web import capture_login_screen, get_screenshot_path
+from max_web import queue_browser_start, read_browser_status, get_screenshot_path
 
 csrf = CSRFProtect()
 
@@ -173,14 +173,19 @@ def create_app(test_config=None):
     @login_required
     def max_web():
         if request.method == "POST":
-            result = capture_login_screen()
-            if result.get("ok"):
-                flash("Страница MAX открыта. Проверьте QR-код ниже.", "success")
-            else:
-                flash("Ошибка MAX Web: " + result.get("error", "неизвестная ошибка"), "error")
+            try:
+                queue_browser_start()
+                flash("Команда отправлена браузеру MAX. Экран обновится после запуска.", "success")
+            except Exception as exc:
+                flash("Не удалось передать команду MAX Web: " + str(exc)[:300], "error")
 
         screenshot_exists = get_screenshot_path().is_file()
-        return render_template("max_web.html", screenshot_exists=screenshot_exists)
+        browser_status = read_browser_status()
+        return render_template(
+            "max_web.html",
+            screenshot_exists=screenshot_exists,
+            browser_status=browser_status,
+        )
 
     @app.route("/max-web/qr")
     @login_required
