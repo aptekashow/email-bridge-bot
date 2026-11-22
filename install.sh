@@ -16,7 +16,7 @@ if [[ -z "$APP_USER" || "$APP_USER" == "root" ]] || ! id "$APP_USER" >/dev/null 
   exit 1
 fi
 
-echo "[1/7] Установка системных пакетов..."
+echo "[1/8] Установка системных пакетов..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y python3 python3-venv python3-pip ca-certificates curl
@@ -62,6 +62,8 @@ sed "s/@SERVICE_USER@/$APP_USER/g" "$APP_DIR/deploy/email-bridge-web.service" \
   > /etc/systemd/system/email-bridge-web.service
 sed "s/@SERVICE_USER@/$APP_USER/g" "$APP_DIR/deploy/email-bridge-worker.service" \
   > /etc/systemd/system/email-bridge-worker.service
+sed "s/@SERVICE_USER@/$APP_USER/g" "$APP_DIR/deploy/email-bridge-max-web.service" \
+  > /etc/systemd/system/email-bridge-max-web.service
 
 echo "[7/8] Права и запуск..."
 chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
