@@ -12,6 +12,7 @@ DATA_DIR = Path(os.getenv("MAX_WEB_DATA_DIR", str(BASE_DIR.parent / "email-bridg
 PROFILE_DIR = DATA_DIR / "max-profile"
 SCREENSHOT_PATH = DATA_DIR / "max-login.png"
 STATUS_PATH = DATA_DIR / "max-web-status.json"
+DIAGNOSTICS_PATH = DATA_DIR / "max-web-diagnostics.json"
 COMMAND_PATH = DATA_DIR / "max-web-command.json"
 MAX_WEB_URL = "https://web.max.ru/"
 
@@ -62,3 +63,24 @@ def get_screenshot_path() -> Path:
 
 def get_data_dir() -> Path:
     return DATA_DIR
+
+
+def queue_browser_inspection() -> None:
+    """Ask the browser worker to inspect visible UI controls without reading chat messages."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with FileLock(str(COMMAND_PATH) + ".lock", timeout=5):
+        _atomic_json_write(COMMAND_PATH, {
+            "action": "inspect",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+
+def read_browser_diagnostics() -> dict:
+    try:
+        with DIAGNOSTICS_PATH.open("r", encoding="utf-8") as stream:
+            result = json.load(stream)
+        if isinstance(result, dict):
+            return result
+    except (OSError, ValueError):
+        pass
+    return {}
