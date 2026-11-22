@@ -1,0 +1,15 @@
+[Unit]
+Description=Email Bridge Bot Web Panel
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/email-bridge-bot
+EnvironmentFile=/opt/email-bridge-bot/.env
+ExecStart=/opt/email-bridge-bot/.venv/bin/gunicorn --workers 2 --bind 0.0.0.0:10000 app:app
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+[Unit]
+Description=Email Bridge Bot IMAP Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/email-bridge-bot
+EnvironmentFile=/opt/email-bridge-bot/.env
+ExecStart=/opt/email-bridge-bot/.venv/bin/python mail_worker.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
