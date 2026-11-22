@@ -21,7 +21,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y python3 python3-venv python3-pip ca-certificates curl
 
-echo "[2/7] Копирование проекта в $APP_DIR..."
+echo "[2/8] Копирование проекта в $APP_DIR..."
 install -d -o "$APP_USER" -g "$APP_USER" -m 0750 "$APP_DIR"
 cp -a "$SOURCE_DIR/." "$APP_DIR/"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
