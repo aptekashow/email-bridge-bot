@@ -1,6 +1,7 @@
 import logging
 import os
 import signal
+import subprocess
 import time
 from datetime import datetime, timezone
 
@@ -8,14 +9,9 @@ from filelock import FileLock, Timeout
 from playwright.sync_api import sync_playwright
 
 from max_web import (
-    COMMAND_PATH,
-    DATA_DIR,
-    DIAGNOSTICS_PATH,
-    MAX_WEB_URL,
-    PROFILE_DIR,
-    SCREENSHOT_PATH,
-    STATUS_PATH,
-    _atomic_json_write,
+    COMMAND_PATH, DATA_DIR, DIAGNOSTICS_PATH, MAX_WEB_URL,
+    PROFILE_DIR, STATUS_PATH, VNC_AUTH_PATH, _atomic_json_write,
+    get_vnc_password,
 )
 
 logging.basicConfig(
@@ -24,6 +20,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("email_bridge.max_web")
 _running = True
+_display_processes = []
 
 
 def stop_worker(*_):
@@ -45,11 +42,7 @@ def write_status(**values):
             previous = loaded
     except (OSError, ValueError):
         pass
-    payload = {
-        **previous,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        **values,
-    }
+    payload = {**previous, "updated_at": datetime.now(timezone.utc).isoformat(), **values}
     _atomic_json_write(STATUS_PATH, payload)
 
 
@@ -75,6 +68,49 @@ def take_command():
         return None
 
 
+def start_display():
+    """Start a private X display, password-protected VNC and noVNC websocket gateway."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    password = get_vnc_password()
+    os.chmod(DATA_DIR, 0o700)
+    VNC_AUTH_PATH.unlink(missing_ok=True)
+    subprocess.run(
+        ["x11vnc", "-storepasswd", password, str(VNC_AUTH_PATH)],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+    )
+    os.chmod(VNC_AUTH_PATH, 0o600)
+
+    env = os.environ.copy()
+    env["DISPLAY"] = ":99"
+    commands = [
+        ["Xvfb", ":99", "-screen", "0", "1280x900x24", "-nolisten", "tcp", "-ac"],
+        ["x11vnc", "-display", ":99", "-rfbauth", str(VNC_AUTH_PATH),
+         "-forever", "-shared", "-rfbport", "5900", "-localhost", "-noxdamage"],
+        ["websockify", "--web=/usr/share/novnc", "0.0.0.0:6080", "localhost:5900"],
+    ]
+    for command in commands:
+        process = subprocess.Popen(
+            command, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+        )
+        _display_processes.append(process)
+        time.sleep(0.7)
+        if process.poll() is not None:
+            raise RuntimeError(f"Не запустилась служба экрана: {command[0]}")
+    os.environ["DISPLAY"] = ":99"
+    log.info("Удалённый экран запущен: noVNC TCP 6080; VNC защищён паролем")
+
+
+def stop_display():
+    for process in reversed(_display_processes):
+        if process.poll() is None:
+            process.terminate()
+    for process in reversed(_display_processes):
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            process.kill()
+    _display_processes.clear()
+
 
 def inspect_page(page):
     """Collect page state and UI control labels, never chat message contents."""
@@ -91,8 +127,7 @@ def inspect_page(page):
                 role: el.getAttribute('role') || '',
                 aria: el.getAttribute('aria-label') || '',
                 title: el.getAttribute('title') || '',
-                placeholder: el.getAttribute('placeholder') || '',
-                // Do not persist innerText: clickable chat rows may contain message previews.
+                placeholder: el.getAttribute('placeholder') || ''
             })""")
             if any(item.values()):
                 items.append(item)
@@ -114,12 +149,10 @@ def inspect_page(page):
     write_status(
         running=True,
         message="Интерфейс MAX проверен. Статус входа предварительный — требуется визуальная проверка.",
-        url=page.url,
-        title=page.title(),
-        authenticated_guess=authenticated,
-        error=None,
+        url=page.url, title=page.title(), authenticated_guess=authenticated, error=None,
     )
     log.info("MAX Web UI inspection completed: %s visible controls", len(items))
+
 
 def main():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -128,99 +161,74 @@ def main():
     os.chmod(PROFILE_DIR, 0o700)
     context = None
     page = None
-    last_screenshot = 0.0
 
-    log.info("MAX Web worker запущен; ожидаю команду из веб-панели")
-    write_status(running=False, message="Ожидание запуска MAX Web", error=None)
-
-    with sync_playwright() as playwright:
-        while _running:
-            command = take_command()
-            if command and command.get("action") in {"open", "inspect"}:
-                try:
-                    if context is None:
-                        context = playwright.chromium.launch_persistent_context(
-                            user_data_dir=str(PROFILE_DIR),
-                            headless=True,
-                            args=["--no-sandbox"],
-                            viewport={"width": 1280, "height": 900},
-                        )
-                    page = context.pages[0] if context.pages else context.new_page()
-                    if command.get("action") == "open":
-                        page.goto(
-                            MAX_WEB_URL,
-                            wait_until="domcontentloaded",
-                            timeout=60000,
-                        )
-                        last_screenshot = 0.0
-                        write_status(
-                            running=True,
-                            message="MAX Web открыт. QR-код должен появиться на снимке экрана.",
-                            url=page.url,
-                            title=page.title(),
-                            authenticated_guess=None,
-                            error=None,
-                        )
-                        log.info("MAX Web открыт: %s", page.url)
-                    else:
-                        if not page.url or page.url == "about:blank":
+    log.info("MAX Web worker запускает интерактивный экран")
+    write_status(running=False, message="Запуск интерактивного браузера MAX", error=None)
+    try:
+        start_display()
+        with sync_playwright() as playwright:
+            while _running:
+                command = take_command()
+                if command and command.get("action") in {"open", "inspect"}:
+                    try:
+                        if context is None:
+                            context = playwright.chromium.launch_persistent_context(
+                                user_data_dir=str(PROFILE_DIR),
+                                headless=False,
+                                args=["--no-sandbox", "--disable-dev-shm-usage"],
+                                viewport={"width": 1280, "height": 900},
+                            )
+                        page = context.pages[0] if context.pages else context.new_page()
+                        if command.get("action") == "open":
                             page.goto(MAX_WEB_URL, wait_until="domcontentloaded", timeout=60000)
-                        inspect_page(page)
-                        last_screenshot = 0.0
-                except Exception as exc:
-                    log.exception("Ошибка операции MAX Web")
-                    if context is not None:
+                            write_status(
+                                running=True,
+                                message="MAX Web открыт в интерактивном окне. Подключитесь к экрану ниже.",
+                                url=page.url, title=page.title(), authenticated_guess=None, error=None,
+                            )
+                            log.info("MAX Web открыт: %s", page.url)
+                        else:
+                            if not page.url or page.url == "about:blank":
+                                page.goto(MAX_WEB_URL, wait_until="domcontentloaded", timeout=60000)
+                            inspect_page(page)
+                    except Exception as exc:
+                        log.exception("Ошибка операции MAX Web")
+                        if context is not None:
+                            try:
+                                context.close()
+                            except Exception:
+                                pass
+                        context = None
+                        page = None
+                        write_status(
+                            running=False,
+                            message="Не удалось выполнить операцию MAX Web. Проверьте журнал службы.",
+                            error=str(exc)[:500],
+                        )
+                if context is not None and page is not None:
+                    try:
+                        if page.is_closed():
+                            page = context.new_page()
+                            page.goto(MAX_WEB_URL, wait_until="domcontentloaded", timeout=60000)
+                    except Exception as exc:
+                        log.warning("Потеряно окно MAX Web: %s", str(exc)[:300])
+                        write_status(running=False, message="Окно MAX Web закрыто", error=str(exc)[:500])
                         try:
                             context.close()
                         except Exception:
                             pass
-                    context = None
-                    page = None
-                    write_status(
-                        running=False,
-                        message="Не удалось выполнить операцию MAX Web. Проверьте журнал службы.",
-                        error=str(exc)[:500],
-                    )
-
-            if context is not None and page is not None:
-                try:
-                    if page.is_closed():
-                        page = context.new_page()
-                        page.goto(MAX_WEB_URL, wait_until="domcontentloaded", timeout=60000)
-                    now = time.monotonic()
-                    if now - last_screenshot >= 3:
-                        page.screenshot(path=str(SCREENSHOT_PATH), full_page=True)
-                        last_screenshot = now
-                        write_status(
-                            running=True,
-                            message="Браузер MAX работает. Состояние авторизации проверяется отдельно.",
-                            url=page.url,
-                            title=page.title(),
-                            error=None,
-                        )
-                except Exception as exc:
-                    log.warning("Ошибка обновления экрана MAX Web: %s", str(exc)[:300])
-                    write_status(
-                        running=False,
-                        message="Потеряно соединение с окном MAX Web. Нажмите «Открыть / обновить QR».",
-                        error=str(exc)[:500],
-                    )
-                    try:
-                        context.close()
-                    except Exception:
-                        pass
-                    context = None
-                    page = None
-
-            time.sleep(1)
-
-    if context is not None:
-        try:
-            context.close()
-        except Exception:
-            pass
-    write_status(running=False, message="MAX Web worker остановлен", error=None)
-    log.info("MAX Web worker остановлен")
+                        context = None
+                        page = None
+                time.sleep(1)
+    finally:
+        if context is not None:
+            try:
+                context.close()
+            except Exception:
+                pass
+        stop_display()
+        write_status(running=False, message="MAX Web worker остановлен", error=None)
+        log.info("MAX Web worker остановлен")
 
 
 if __name__ == "__main__":
