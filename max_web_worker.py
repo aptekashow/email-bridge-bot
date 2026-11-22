@@ -10,6 +10,7 @@ from playwright.sync_api import sync_playwright
 from max_web import (
     COMMAND_PATH,
     DATA_DIR,
+    DIAGNOSTICS_PATH,
     MAX_WEB_URL,
     PROFILE_DIR,
     SCREENSHOT_PATH,
@@ -64,6 +65,53 @@ def take_command():
         return None
 
 
+
+def inspect_page(page):
+    """Collect page state and UI control labels, never chat message contents."""
+    controls = page.locator("button, a, input, textarea, [role='button'], [role='textbox']")
+    items = []
+    count = min(controls.count(), 250)
+    for index in range(count):
+        element = controls.nth(index)
+        try:
+            if not element.is_visible():
+                continue
+            item = element.evaluate("""el => ({
+                tag: el.tagName.toLowerCase(),
+                role: el.getAttribute('role') || '',
+                aria: el.getAttribute('aria-label') || '',
+                title: el.getAttribute('title') || '',
+                placeholder: el.getAttribute('placeholder') || '',
+                text: (el.innerText || el.value || '').trim().replace(/\\s+/g, ' ').slice(0, 100)
+            })""")
+            if any(item.values()):
+                items.append(item)
+        except Exception:
+            continue
+
+    body_text = page.locator("body").inner_text(timeout=5000)
+    lower_text = body_text.casefold()
+    login_indicators = ("войти", "qr-код", "qr code", "сканируйте", "вход по")
+    authenticated = not any(marker in lower_text for marker in login_indicators)
+    payload = {
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "url": page.url,
+        "title": page.title(),
+        "authenticated_guess": authenticated,
+        "body_preview": " ".join(body_text.split())[:500],
+        "controls": items,
+    }
+    _atomic_json_write(DIAGNOSTICS_PATH, payload)
+    write_status(
+        running=True,
+        message="Интерфейс MAX проверен. Статус входа предварительный — требуется визуальная проверка.",
+        url=page.url,
+        title=page.title(),
+        authenticated_guess=authenticated,
+        error=None,
+    )
+    log.info("MAX Web UI inspection completed: %s visible controls", len(items))
+
 def main():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
@@ -77,7 +125,7 @@ def main():
     with sync_playwright() as playwright:
         while _running:
             command = take_command()
-            if command and command.get("action") == "open":
+            if command and command.get("action") in {"open", "inspect"}:
                 try:
                     if context is None:
                         context = playwright.chromium.launch_persistent_context(
@@ -87,22 +135,28 @@ def main():
                             viewport={"width": 1280, "height": 900},
                         )
                     page = context.pages[0] if context.pages else context.new_page()
-                    page.goto(
-                        MAX_WEB_URL,
-                        wait_until="domcontentloaded",
-                        timeout=60000,
-                    )
-                    last_screenshot = 0.0
-                    write_status(
-                        running=True,
-                        message="MAX Web открыт. QR-код должен появиться на снимке экрана.",
-                        url=page.url,
-                        title=page.title(),
-                        error=None,
-                    )
-                    log.info("MAX Web открыт: %s", page.url)
+                    if command.get("action") == "open":
+                        page.goto(
+                            MAX_WEB_URL,
+                            wait_until="domcontentloaded",
+                            timeout=60000,
+                        )
+                        last_screenshot = 0.0
+                        write_status(
+                            running=True,
+                            message="MAX Web открыт. QR-код должен появиться на снимке экрана.",
+                            url=page.url,
+                            title=page.title(),
+                            error=None,
+                        )
+                        log.info("MAX Web открыт: %s", page.url)
+                    else:
+                        if not page.url or page.url == "about:blank":
+                            page.goto(MAX_WEB_URL, wait_until="domcontentloaded", timeout=60000)
+                        inspect_page(page)
+                        last_screenshot = 0.0
                 except Exception as exc:
-                    log.exception("Не удалось открыть MAX Web")
+                    log.exception("Ошибка операции MAX Web")
                     if context is not None:
                         try:
                             context.close()
@@ -112,7 +166,7 @@ def main():
                     page = None
                     write_status(
                         running=False,
-                        message="Не удалось открыть MAX Web. Проверьте журнал службы и повторите запуск.",
+                        message="Не удалось выполнить операцию MAX Web. Проверьте журнал службы.",
                         error=str(exc)[:500],
                     )
 
