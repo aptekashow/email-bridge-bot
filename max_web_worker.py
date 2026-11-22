@@ -36,7 +36,17 @@ signal.signal(signal.SIGINT, stop_worker)
 
 
 def write_status(**values):
+    previous = {}
+    try:
+        import json
+        with STATUS_PATH.open("r", encoding="utf-8") as stream:
+            loaded = json.load(stream)
+        if isinstance(loaded, dict):
+            previous = loaded
+    except (OSError, ValueError):
+        pass
     payload = {
+        **previous,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         **values,
     }
@@ -146,6 +156,7 @@ def main():
                             message="MAX Web открыт. QR-код должен появиться на снимке экрана.",
                             url=page.url,
                             title=page.title(),
+                            authenticated_guess=None,
                             error=None,
                         )
                         log.info("MAX Web открыт: %s", page.url)
