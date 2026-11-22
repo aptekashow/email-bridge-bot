@@ -4,7 +4,7 @@ import signal
 import time
 from datetime import datetime, timezone
 
-from filelock import FileLock
+from filelock import FileLock, Timeout
 from playwright.sync_api import sync_playwright
 
 from max_web import (
@@ -45,20 +45,23 @@ def write_status(**values):
 def take_command():
     if not COMMAND_PATH.exists():
         return None
-    with FileLock(str(COMMAND_PATH) + ".lock", timeout=2):
-        if not COMMAND_PATH.exists():
-            return None
-        try:
-            import json
-            with COMMAND_PATH.open("r", encoding="utf-8") as stream:
-                command = json.load(stream)
-        except (OSError, ValueError):
-            command = None
-        try:
-            COMMAND_PATH.unlink()
-        except FileNotFoundError:
-            pass
-        return command
+    try:
+        with FileLock(str(COMMAND_PATH) + ".lock", timeout=2):
+            if not COMMAND_PATH.exists():
+                return None
+            try:
+                import json
+                with COMMAND_PATH.open("r", encoding="utf-8") as stream:
+                    command = json.load(stream)
+            except (OSError, ValueError):
+                command = None
+            try:
+                COMMAND_PATH.unlink()
+            except FileNotFoundError:
+                pass
+            return command
+    except Timeout:
+        return None
 
 
 def main():
@@ -100,9 +103,16 @@ def main():
                     log.info("MAX Web открыт: %s", page.url)
                 except Exception as exc:
                     log.exception("Не удалось открыть MAX Web")
+                    if context is not None:
+                        try:
+                            context.close()
+                        except Exception:
+                            pass
+                    context = None
+                    page = None
                     write_status(
-                        running=context is not None,
-                        message="Не удалось открыть MAX Web",
+                        running=False,
+                        message="Не удалось открыть MAX Web. Проверьте журнал службы и повторите запуск.",
                         error=str(exc)[:500],
                     )
 
