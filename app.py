@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from config import Config
 from models import db, Settings, Rule, DeliveryLog, ProcessedMail
-from max_web import queue_browser_start, read_browser_status, get_screenshot_path
+from max_web import (\n    queue_browser_start, queue_browser_inspection,\n    read_browser_status, read_browser_diagnostics, get_screenshot_path,\n)
 
 csrf = CSRFProtect()
 
@@ -174,17 +174,24 @@ def create_app(test_config=None):
     def max_web():
         if request.method == "POST":
             try:
-                queue_browser_start()
-                flash("Команда отправлена браузеру MAX. Экран обновится после запуска.", "success")
+                action = request.form.get("action", "open")
+                if action == "inspect":
+                    queue_browser_inspection()
+                    flash("Запрос диагностики отправлен. Через несколько секунд обновите страницу.", "success")
+                else:
+                    queue_browser_start()
+                    flash("Команда отправлена браузеру MAX. Экран обновится после запуска.", "success")
             except Exception as exc:
                 flash("Не удалось передать команду MAX Web: " + str(exc)[:300], "error")
 
         screenshot_exists = get_screenshot_path().is_file()
         browser_status = read_browser_status()
+        diagnostics = read_browser_diagnostics()
         return render_template(
             "max_web.html",
             screenshot_exists=screenshot_exists,
             browser_status=browser_status,
+            diagnostics=diagnostics,
         )
 
     @app.route("/max-web/qr")
