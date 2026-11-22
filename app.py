@@ -1,6 +1,7 @@
 import os
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, abort
+from urllib.parse import urlsplit
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import inspect, text
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -10,7 +11,7 @@ from config import Config
 from models import db, Settings, Rule, DeliveryLog, ProcessedMail
 from max_web import (
     queue_browser_start, queue_browser_inspection,
-    read_browser_status, read_browser_diagnostics, get_screenshot_path,
+    read_browser_status, read_browser_diagnostics, get_vnc_password,
 )
 
 csrf = CSRFProtect()
@@ -57,7 +58,7 @@ def create_app(test_config=None):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "same-origin"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self' 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-src 'self' http: https:; connect-src 'self' ws: wss:; form-action 'self'; frame-ancestors 'none'"
         return response
 
     @app.route("/login", methods=["GET", "POST"])
@@ -187,25 +188,15 @@ def create_app(test_config=None):
             except Exception as exc:
                 flash("Не удалось передать команду MAX Web: " + str(exc)[:300], "error")
 
-        screenshot_exists = get_screenshot_path().is_file()
         browser_status = read_browser_status()
         diagnostics = read_browser_diagnostics()
         return render_template(
             "max_web.html",
-            screenshot_exists=screenshot_exists,
             browser_status=browser_status,
             diagnostics=diagnostics,
+            vnc_host=urlsplit(request.host_url).hostname,
+            vnc_password=get_vnc_password(),
         )
-
-    @app.route("/max-web/qr")
-    @login_required
-    def max_web_qr():
-        path = get_screenshot_path()
-        if not path.is_file():
-            abort(404)
-        response = send_file(path, mimetype="image/png", max_age=0)
-        response.headers["Cache-Control"] = "no-store"
-        return response
 
     @app.route("/history")
     @login_required
