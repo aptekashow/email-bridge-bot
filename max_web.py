@@ -1,5 +1,7 @@
 import json
 import os
+import secrets
+import string
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +16,8 @@ SCREENSHOT_PATH = DATA_DIR / "max-login.png"
 STATUS_PATH = DATA_DIR / "max-web-status.json"
 DIAGNOSTICS_PATH = DATA_DIR / "max-web-diagnostics.json"
 COMMAND_PATH = DATA_DIR / "max-web-command.json"
+VNC_PASSWORD_PATH = DATA_DIR / "vnc-password.txt"
+VNC_AUTH_PATH = DATA_DIR / "vnc-auth"
 MAX_WEB_URL = "https://web.max.ru/"
 
 
@@ -31,8 +35,24 @@ def _atomic_json_write(path: Path, payload: dict) -> None:
             os.unlink(temporary)
 
 
+def get_vnc_password() -> str:
+    """Create/read the local VNC password; only the authenticated panel displays it."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        return VNC_PASSWORD_PATH.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        alphabet = string.ascii_letters + string.digits
+        password = "".join(secrets.choice(alphabet) for _ in range(8))
+        try:
+            fd = os.open(str(VNC_PASSWORD_PATH), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            return VNC_PASSWORD_PATH.read_text(encoding="utf-8").strip()
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(password)
+        return password
+
+
 def queue_browser_start() -> None:
-    """Ask the separate MAX browser worker to open MAX Web."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with FileLock(str(COMMAND_PATH) + ".lock", timeout=5):
         _atomic_json_write(COMMAND_PATH, {
@@ -49,12 +69,7 @@ def read_browser_status() -> dict:
             return result
     except (OSError, ValueError):
         pass
-    return {
-        "running": False,
-        "message": "Браузер ещё не запускался",
-        "updated_at": None,
-        "error": None,
-    }
+    return {"running": False, "message": "Браузер ещё не запускался", "updated_at": None, "error": None}
 
 
 def get_screenshot_path() -> Path:
@@ -66,7 +81,6 @@ def get_data_dir() -> Path:
 
 
 def queue_browser_inspection() -> None:
-    """Ask the browser worker to inspect visible UI controls without reading chat messages."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with FileLock(str(COMMAND_PATH) + ".lock", timeout=5):
         _atomic_json_write(COMMAND_PATH, {
