@@ -1,6 +1,6 @@
 import os
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, abort
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import inspect, text
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 from config import Config
 from models import db, Settings, Rule, DeliveryLog, ProcessedMail
+from max_web import capture_login_screen, get_screenshot_path
 
 csrf = CSRFProtect()
 
@@ -167,6 +168,29 @@ def create_app(test_config=None):
         db.session.commit()
         flash("Правило удалено", "success")
         return redirect(url_for("rules"))
+
+    @app.route("/max-web", methods=["GET", "POST"])
+    @login_required
+    def max_web():
+        if request.method == "POST":
+            result = capture_login_screen()
+            if result.get("ok"):
+                flash("Страница MAX открыта. Проверьте QR-код ниже.", "success")
+            else:
+                flash("Ошибка MAX Web: " + result.get("error", "неизвестная ошибка"), "error")
+
+        screenshot_exists = get_screenshot_path().is_file()
+        return render_template("max_web.html", screenshot_exists=screenshot_exists)
+
+    @app.route("/max-web/qr")
+    @login_required
+    def max_web_qr():
+        path = get_screenshot_path()
+        if not path.is_file():
+            abort(404)
+        response = send_file(path, mimetype="image/png", max_age=0)
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     @app.route("/history")
     @login_required
