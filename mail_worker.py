@@ -65,7 +65,14 @@ def process_mailbox_once():
 
                     # Intentionally search the body only. Subject is not included.
                     haystack = body.casefold()
-                    matching = [r for r in rules if r.keyword.casefold() in haystack]
+                    matching = [
+                        r for r in rules
+                        if any(
+                            keyword.casefold() in haystack
+                            for keyword in (part.strip() for part in r.keyword.split(","))
+                            if keyword
+                        )
+                    ]
                     errors = []
                     successes = 0
 
