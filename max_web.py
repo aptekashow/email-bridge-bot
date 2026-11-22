@@ -1,56 +1,64 @@
+import json
 import os
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
-from filelock import FileLock, Timeout
-from playwright.sync_api import sync_playwright
+from filelock import FileLock
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = Path(
-    os.getenv("MAX_WEB_DATA_DIR", str(BASE_DIR.parent / "email-bridge-data"))
-)
+DATA_DIR = Path(os.getenv("MAX_WEB_DATA_DIR", str(BASE_DIR.parent / "email-bridge-data")))
 PROFILE_DIR = DATA_DIR / "max-profile"
 SCREENSHOT_PATH = DATA_DIR / "max-login.png"
+STATUS_PATH = DATA_DIR / "max-web-status.json"
+COMMAND_PATH = DATA_DIR / "max-web-command.json"
 MAX_WEB_URL = "https://web.max.ru/"
 
 
-def capture_login_screen():
-    """Open MAX Web, persist the browser session and capture its current screen."""
+def _atomic_json_write(path: Path, payload: dict) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-
-    lock = FileLock(str(PROFILE_DIR) + ".lock", timeout=15)
+    fd, temporary = tempfile.mkstemp(prefix=path.name, suffix=".tmp", dir=str(DATA_DIR))
     try:
-        with lock:
-            with sync_playwright() as playwright:
-                context = playwright.chromium.launch_persistent_context(
-                    user_data_dir=str(PROFILE_DIR),
-                    headless=True,
-                    args=["--no-sandbox"],
-                    viewport={"width": 1280, "height": 900},
-                )
-                try:
-                    page = context.pages[0] if context.pages else context.new_page()
-                    page.goto(
-                        MAX_WEB_URL,
-                        wait_until="domcontentloaded",
-                        timeout=60000,
-                    )
-                    page.wait_for_timeout(8000)
-                    page.screenshot(path=str(SCREENSHOT_PATH), full_page=True)
-                    return {
-                        "ok": True,
-                        "url": page.url,
-                        "title": page.title(),
-                        "screenshot": str(SCREENSHOT_PATH),
-                    }
-                finally:
-                    context.close()
-    except Timeout:
-        return {"ok": False, "error": "Браузер MAX занят другой операцией"}
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)[:500]}
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, ensure_ascii=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
-def get_screenshot_path():
+def queue_browser_start() -> None:
+    """Ask the separate MAX browser worker to open MAX Web."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with FileLock(str(COMMAND_PATH) + ".lock", timeout=5):
+        _atomic_json_write(COMMAND_PATH, {
+            "action": "open",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+
+def read_browser_status() -> dict:
+    try:
+        with STATUS_PATH.open("r", encoding="utf-8") as stream:
+            result = json.load(stream)
+        if isinstance(result, dict):
+            return result
+    except (OSError, ValueError):
+        pass
+    return {
+        "running": False,
+        "message": "Браузер ещё не запускался",
+        "updated_at": None,
+        "error": None,
+    }
+
+
+def get_screenshot_path() -> Path:
     return SCREENSHOT_PATH
+
+
+def get_data_dir() -> Path:
+    return DATA_DIR
