@@ -19,7 +19,7 @@ fi
 echo "[1/8] Установка системных пакетов..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y python3 python3-venv python3-pip ca-certificates curl
+apt-get install -y python3 python3-venv python3-pip ca-certificates curl xvfb x11vnc novnc websockify
 
 echo "[2/8] Копирование проекта в $APP_DIR..."
 install -d -o "$APP_USER" -g "$APP_USER" -m 0750 "$APP_DIR"
