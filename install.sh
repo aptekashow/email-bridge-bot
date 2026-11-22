@@ -27,12 +27,16 @@ cp -a "$SOURCE_DIR/." "$APP_DIR/"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 chmod 0750 "$APP_DIR"
 
-echo "[3/7] Подготовка виртуального окружения..."
+echo "[3/8] Подготовка виртуального окружения..."
 sudo -u "$APP_USER" python3 -m venv "$APP_DIR/.venv"
 sudo -u "$APP_USER" "$APP_DIR/.venv/bin/pip" install --upgrade pip
 sudo -u "$APP_USER" "$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt"
 
-echo "[4/7] Создание .env при первой установке..."
+echo "[4/8] Установка Chromium для MAX Web..."
+"$APP_DIR/.venv/bin/playwright" install-deps chromium
+sudo -u "$APP_USER" "$APP_DIR/.venv/bin/playwright" install chromium
+
+echo "[5/8] Создание .env при первой установке..."
 if [[ ! -f "$APP_DIR/.env" ]]; then
   SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
   ADMIN_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
@@ -53,21 +57,21 @@ else
   echo "Существующий .env сохранён без изменений."
 fi
 
-echo "[5/7] Установка служб systemd..."
+echo "[6/8] Установка служб systemd..."
 sed "s/@SERVICE_USER@/$APP_USER/g" "$APP_DIR/deploy/email-bridge-web.service" \
   > /etc/systemd/system/email-bridge-web.service
 sed "s/@SERVICE_USER@/$APP_USER/g" "$APP_DIR/deploy/email-bridge-worker.service" \
   > /etc/systemd/system/email-bridge-worker.service
 
-echo "[6/7] Права и запуск..."
+echo "[7/8] Права и запуск..."
 chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
 chmod 0600 "$APP_DIR/.env"
 systemctl daemon-reload
-systemctl enable --now email-bridge-web.service email-bridge-worker.service
+systemctl enable --now email-bridge-web.service email-bridge-worker.service email-bridge-max-web.service
 
-echo "[7/7] Проверка..."
+echo "[8/8] Проверка..."
 sleep 2
-systemctl --no-pager --full status email-bridge-web.service email-bridge-worker.service || true
+systemctl --no-pager --full status email-bridge-web.service email-bridge-worker.service email-bridge-max-web.service || true
 echo
 echo "Установка завершена."
 echo "Панель: http://IP_СЕРВЕРА:10000"
