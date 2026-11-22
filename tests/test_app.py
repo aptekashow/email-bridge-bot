@@ -47,5 +47,31 @@ class AppTests(unittest.TestCase):
         with self.app.app_context():
             self.assertEqual(Rule.query.count(), 1)
 
+    def test_add_rule_with_multiple_keywords(self):
+        self.login()
+        response = self.client.post("/rules", data={"keyword": "авария, протечка,  отопление ", "target": "TG", "recipient_id": "123"}, follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(Rule.query.first().keyword, "авария, протечка, отопление")
+
+    def test_edit_rule(self):
+        self.login()
+        with self.app.app_context():
+            rule = Rule(keyword="авария", target="TG", recipient_id="123")
+            db.session.add(rule)
+            db.session.commit()
+            rule_id = rule.id
+        response = self.client.post(f"/rules/{rule_id}/edit", data={
+            "keyword": "протечка, отопление",
+            "target": "MAX",
+            "recipient_id": "chat:456",
+        }, follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            rule = db.session.get(Rule, rule_id)
+            self.assertEqual(rule.keyword, "протечка, отопление")
+            self.assertEqual(rule.target, "MAX")
+            self.assertEqual(rule.recipient_id, "chat:456")
+
 if __name__ == "__main__":
     unittest.main()
