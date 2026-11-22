@@ -118,17 +118,38 @@ def create_app(test_config=None):
     @login_required
     def rules():
         if request.method == "POST":
-            keyword = request.form.get("keyword", "").strip()
+            keywords = [item.strip() for item in request.form.get("keyword", "").split(",") if item.strip()]
+            keyword = ", ".join(keywords)
             target = request.form.get("target", "").upper()
             recipient_id = request.form.get("recipient_id", "").strip()
-            if not keyword or target not in {"TG", "MAX"} or not recipient_id:
-                flash("Заполните все поля правила", "error")
+            if not keyword or len(keyword) > 200 or target not in {"TG", "MAX"} or not recipient_id:
+                flash("Проверьте ключевые слова, канал и получателя. Общая длина ключевых слов — до 200 символов.", "error")
             else:
                 db.session.add(Rule(keyword=keyword, target=target, recipient_id=recipient_id))
                 db.session.commit()
                 flash("Правило добавлено", "success")
                 return redirect(url_for("rules"))
         return render_template("rules.html", rules=Rule.query.order_by(Rule.id.desc()).all())
+
+    @app.route("/rules/<int:rule_id>/edit", methods=["GET", "POST"])
+    @login_required
+    def edit_rule(rule_id):
+        rule = db.get_or_404(Rule, rule_id)
+        if request.method == "POST":
+            keywords = [item.strip() for item in request.form.get("keyword", "").split(",") if item.strip()]
+            target = request.form.get("target", "").upper()
+            recipient_id = request.form.get("recipient_id", "").strip()
+            keyword_value = ", ".join(keywords)
+            if not keyword_value or len(keyword_value) > 200 or target not in {"TG", "MAX"} or not recipient_id:
+                flash("Проверьте ключевые слова, канал и получателя. Общая длина ключевых слов — до 200 символов.", "error")
+            else:
+                rule.keyword = keyword_value
+                rule.target = target
+                rule.recipient_id = recipient_id
+                db.session.commit()
+                flash("Правило обновлено", "success")
+                return redirect(url_for("rules"))
+        return render_template("rules.html", rules=Rule.query.order_by(Rule.id.desc()).all(), edit_rule=rule)
 
     @app.post("/rules/<int:rule_id>/toggle")
     @login_required
