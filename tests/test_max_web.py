@@ -34,6 +34,17 @@ class MaxWebQueueTests(unittest.TestCase):
             command = json.load(stream)
         self.assertEqual(command["action"], "inspect")
 
+    def test_vnc_password_is_created_and_reused(self):
+        password_path = self.data_dir / "vnc-password.txt"
+        with patch.object(max_web, "DATA_DIR", self.data_dir), patch.object(
+            max_web, "VNC_PASSWORD_PATH", password_path
+        ):
+            first = max_web.get_vnc_password()
+            second = max_web.get_vnc_password()
+        self.assertEqual(first, second)
+        self.assertEqual(len(first), 8)
+        self.assertEqual(password_path.stat().st_mode & 0o777, 0o600)
+
     def test_missing_status_returns_safe_default(self):
         with patch.object(max_web, "STATUS_PATH", self.data_dir / "missing.json"):
             status = max_web.read_browser_status()
