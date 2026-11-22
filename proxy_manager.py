@@ -42,6 +42,13 @@ def _valid_proxy(value):
         return False
 
 
+def _save_cache(items):
+    try:
+        CACHE_FILE.write_text("\n".join(items) + ("\n" if items else ""), encoding="utf-8")
+    except OSError:
+        log.exception("Не удалось сохранить кеш SOCKS5-прокси")
+
+
 def _load_cache():
     try:
         cached = [
@@ -50,8 +57,9 @@ def _load_cache():
             if _valid_proxy(line.strip())
         ]
         if cached:
+            cached = list(dict.fromkeys(cached))
             with _lock:
-                _proxies[:] = list(dict.fromkeys(cached))
+                _proxies[:] = cached
             log.info("Из кеша загружено SOCKS5-прокси: %s", len(cached))
     except FileNotFoundError:
         pass
@@ -63,8 +71,6 @@ def _check_proxy(proxy):
     proxy_url = f"socks5h://{proxy}"
     started_at = time.monotonic()
     try:
-        # Telegram's root may return a redirect or client error; both prove
-        # that the HTTPS request reached Telegram through this proxy.
         response = requests.get(
             TEST_URL,
             proxies={"http": proxy_url, "https": proxy_url},
@@ -79,8 +85,6 @@ def _check_proxy(proxy):
 
 
 def refresh():
-    global _proxies
-
     if not _refresh_lock.acquire(blocking=False):
         return
 
@@ -111,7 +115,6 @@ def refresh():
                     log.exception("Ошибка проверки SOCKS5-прокси")
 
         working.sort(key=lambda item: item[1])
-
         if not working:
             log.error("Рабочих SOCKS5-прокси не найдено; прежний список сохранён")
             return
@@ -119,11 +122,7 @@ def refresh():
         new_list = [proxy for proxy, _latency in working]
         with _lock:
             _proxies[:] = new_list
-
-        try:
-            CACHE_FILE.write_text("\n".join(new_list) + "\n", encoding="utf-8")
-        except OSError:
-            log.exception("Не удалось сохранить кеш SOCKS5-прокси")
+        _save_cache(new_list)
 
         log.info(
             "Рабочих прокси: %s. Самый быстрый: %s (%.2f сек.)",
@@ -147,7 +146,18 @@ def mark_failed():
         if not _proxies:
             return False
         failed = _proxies.pop(0)
+        remaining = list(_proxies)
+
+    _save_cache(remaining)
     log.warning("Прокси исключён после сетевой ошибки: %s", failed)
+
+    if not remaining:
+        # Refill in the background when the current pool is exhausted.
+        threading.Thread(
+            target=refresh,
+            name="proxy-emergency-refresh",
+            daemon=True,
+        ).start()
     return True
 
 
