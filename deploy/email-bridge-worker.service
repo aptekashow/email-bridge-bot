@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=ubuntu
+User=@SERVICE_USER@
 WorkingDirectory=/opt/email-bridge-bot
 EnvironmentFile=/opt/email-bridge-bot/.env
 ExecStart=/opt/email-bridge-bot/.venv/bin/python mail_worker.py
