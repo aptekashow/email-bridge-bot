@@ -15,14 +15,29 @@
     {% if browser_status.title %}
         <p class="muted small">Страница: {{ browser_status.title }}</p>
     {% endif %}
+    {% if browser_status.authenticated_guess is defined %}
+        <p>Предварительная оценка входа:
+            <span class="tag {{ 'ok' if browser_status.authenticated_guess else '' }}">
+                {{ 'Похоже, вход выполнен' if browser_status.authenticated_guess else 'Нужна авторизация' }}
+            </span>
+        </p>
+    {% endif %}
     {% if browser_status.error %}
         <p class="flash error">{{ browser_status.error }}</p>
     {% endif %}
-    <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit">Открыть MAX Web / обновить QR</button>
-    </form>
-    <p class="muted small">После нажатия подождите несколько секунд и обновите эту страницу.</p>
+    <div class="actions">
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="open">
+            <button type="submit">Открыть MAX Web / обновить QR</button>
+        </form>
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="inspect">
+            <button class="secondary" type="submit">Проверить интерфейс MAX</button>
+        </form>
+    </div>
+    <p class="muted small">После команды подождите несколько секунд и обновите эту страницу.</p>
 </section>
 
 {% if screenshot_exists %}
@@ -32,6 +47,35 @@
          alt="Экран MAX Web"
          style="display:block;width:100%;max-width:800px;border-radius:12px;border:1px solid var(--line)">
     <p class="muted small">Если отображается QR-код, отсканируйте его приложением MAX на телефоне.</p>
+</section>
+{% endif %}
+
+{% if diagnostics %}
+<section class="panel">
+    <h2>Диагностика интерфейса</h2>
+    <p class="muted small">Собраны только подписи и атрибуты элементов управления. Текст переписки не сохраняется.</p>
+    <p class="small">Страница: {{ diagnostics.title }} · {{ diagnostics.url }}</p>
+    <p class="small">Проверено: {{ diagnostics.checked_at }}</p>
+    <p class="muted small">Фрагмент видимого текста страницы: {{ diagnostics.body_preview }}</p>
+    {% if diagnostics.controls %}
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Элемент</th><th>Роль</th><th>Подпись</th><th>Подсказка</th></tr></thead>
+            <tbody>
+            {% for item in diagnostics.controls %}
+                <tr>
+                    <td>{{ item.tag }}</td>
+                    <td>{{ item.role }}</td>
+                    <td>{{ item.aria or item.title or item.text }}</td>
+                    <td>{{ item.placeholder }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="muted">Видимые элементы управления не найдены.</p>
+    {% endif %}
 </section>
 {% endif %}
 {% endblock %}
