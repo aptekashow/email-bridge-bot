@@ -8,3 +8,10 @@ __pycache__/
 *.log
 .pytest_cache/
 proxies_cache.txt
+
+# MAX Web browser profile and runtime state
+max-profile/
+email-bridge-data/
+max-login.png
+max-web-status.json
+max-web-command.json
