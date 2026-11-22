@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=ubuntu
+User=@SERVICE_USER@
 WorkingDirectory=/opt/email-bridge-bot
 EnvironmentFile=/opt/email-bridge-bot/.env
 ExecStart=/opt/email-bridge-bot/.venv/bin/gunicorn --workers 2 --bind 0.0.0.0:10000 app:app
