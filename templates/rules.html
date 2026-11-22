@@ -18,7 +18,7 @@
           <td><span class="tag {{ 'ok' if r.enabled else '' }}">{{ 'Включено' if r.enabled else 'Выключено' }}</span></td>
           <td>
             <div class="actions">
-              <a class="button secondary" href="{{ url_for('edit_rule', rule_id=r.id) }}">Редактировать</a>
+              <a class="btn" href="{{ url_for('edit_rule', rule_id=r.id) }}">Редактировать</a>
               <form class="inline" method="post" action="{{ url_for('toggle_rule', rule_id=r.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="secondary" type="submit">{{ 'Выключить' if r.enabled else 'Включить' }}</button>
@@ -61,7 +61,7 @@
     </label>
     <p class="muted small">Достаточно совпадения одного ключевого слова. Общая длина списка — до 200 символов.</p>
     <button type="submit">Сохранить изменения</button>
-    <a class="button secondary" href="{{ url_for('rules') }}">Отмена</a>
+    <a class="btn" href="{{ url_for('rules') }}">Отмена</a>
   </form>
 </section>
 {% else %}
