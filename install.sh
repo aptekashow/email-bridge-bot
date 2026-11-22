@@ -65,6 +65,8 @@ sed "s/@SERVICE_USER@/$APP_USER/g" "$APP_DIR/deploy/email-bridge-worker.service"
 sed "s/@SERVICE_USER@/$APP_USER/g" "$APP_DIR/deploy/email-bridge-max-web.service" \
   > /etc/systemd/system/email-bridge-max-web.service
 
+install -d -o "$APP_USER" -g "$APP_USER" -m 0700 /opt/email-bridge-data
+
 echo "[7/8] Права и запуск..."
 chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
 chmod 0600 "$APP_DIR/.env"
