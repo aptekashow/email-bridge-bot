@@ -1,1 +1,89 @@
-{% extends 'base.html' %}{% block content %}<h1>Правила пересылки</h1><p class="muted">Если тема или текст письма содержит ключевое слово, письмо будет отправлено указанному получателю.</p><section class="panel"><h2>Существующие правила</h2>{% if rules %}<div class="table-wrap"><table><thead><tr><th>Ключевое слово</th><th>Канал</th><th>Получатель</th><th>Состояние</th><th>Действия</th></tr></thead><tbody>{% for r in rules %}<tr><td>{{ r.keyword }}</td><td>{{ 'Telegram' if r.target == 'TG' else 'MAX' }}</td><td>{{ r.recipient_id }}</td><td><span class="tag {{ 'ok' if r.enabled else '' }}">{{ 'Включено' if r.enabled else 'Выключено' }}</span></td><td><div class="actions"><form class="inline" method="post" action="{{ url_for('toggle_rule', rule_id=r.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="secondary" type="submit">{{ 'Выключить' if r.enabled else 'Включить' }}</button></form><form class="inline" method="post" action="{{ url_for('delete_rule', rule_id=r.id) }}" onsubmit="return confirm('Удалить правило?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="danger" type="submit">Удалить</button></form></div></td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="muted">Правил пока нет.</p>{% endif %}</section><section class="panel"><h2>Добавить правило</h2><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="field"><span>Ключевое слово или фраза</span><input name="keyword" required maxlength="200" placeholder="Например: авария"></label><label class="field"><span>Куда отправлять</span><select name="target"><option value="TG">Telegram</option><option value="MAX">MAX</option></select></label><label class="field"><span>Получатель</span><input name="recipient_id" required placeholder="Telegram chat_id или MAX chat_id"></label><p class="muted small">Для MAX: обычный числовой ID считается chat_id. Для личного диалога укажите user:123456. Для группового чата можно указать chat:123456.</p><button type="submit">Добавить правило</button></form></section>{% endblock %}
+{% extends 'base.html' %}
+{% block content %}
+<h1>Правила пересылки</h1>
+<p class="muted">Письмо проверяется только по телу. Если найдено хотя бы одно ключевое слово из списка через запятую, правило срабатывает.</p>
+
+<section class="panel">
+  <h2>Существующие правила</h2>
+  {% if rules %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Ключевые слова</th><th>Канал</th><th>Получатель</th><th>Состояние</th><th>Действия</th></tr></thead>
+      <tbody>
+      {% for r in rules %}
+        <tr>
+          <td>{{ r.keyword }}</td>
+          <td>{{ 'Telegram' if r.target == 'TG' else 'MAX' }}</td>
+          <td>{{ r.recipient_id }}</td>
+          <td><span class="tag {{ 'ok' if r.enabled else '' }}">{{ 'Включено' if r.enabled else 'Выключено' }}</span></td>
+          <td>
+            <div class="actions">
+              <a class="button secondary" href="{{ url_for('edit_rule', rule_id=r.id) }}">Редактировать</a>
+              <form class="inline" method="post" action="{{ url_for('toggle_rule', rule_id=r.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="secondary" type="submit">{{ 'Выключить' if r.enabled else 'Включить' }}</button>
+              </form>
+              <form class="inline" method="post" action="{{ url_for('delete_rule', rule_id=r.id) }}" onsubmit="return confirm('Удалить правило?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="danger" type="submit">Удалить</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="muted">Правил пока нет.</p>
+  {% endif %}
+</section>
+
+{% if edit_rule %}
+<section class="panel">
+  <h2>Редактировать правило №{{ edit_rule.id }}</h2>
+  <form method="post" action="{{ url_for('edit_rule', rule_id=edit_rule.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="field">
+      <span>Ключевые слова через запятую</span>
+      <input name="keyword" required maxlength="200" value="{{ edit_rule.keyword }}" placeholder="Например: авария, протечка, отопление">
+    </label>
+    <label class="field">
+      <span>Куда отправлять</span>
+      <select name="target">
+        <option value="TG" {{ 'selected' if edit_rule.target == 'TG' else '' }}>Telegram</option>
+        <option value="MAX" {{ 'selected' if edit_rule.target == 'MAX' else '' }}>MAX</option>
+      </select>
+    </label>
+    <label class="field">
+      <span>Получатель</span>
+      <input name="recipient_id" required value="{{ edit_rule.recipient_id }}" placeholder="Telegram chat_id или MAX chat_id">
+    </label>
+    <p class="muted small">Достаточно совпадения одного ключевого слова. Общая длина списка — до 200 символов.</p>
+    <button type="submit">Сохранить изменения</button>
+    <a class="button secondary" href="{{ url_for('rules') }}">Отмена</a>
+  </form>
+</section>
+{% else %}
+<section class="panel">
+  <h2>Добавить правило</h2>
+  <form method="post" action="{{ url_for('rules') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="field">
+      <span>Ключевые слова через запятую</span>
+      <input name="keyword" required maxlength="200" placeholder="Например: авария, протечка, отопление">
+    </label>
+    <label class="field">
+      <span>Куда отправлять</span>
+      <select name="target"><option value="TG">Telegram</option><option value="MAX">MAX</option></select>
+    </label>
+    <label class="field">
+      <span>Получатель</span>
+      <input name="recipient_id" required placeholder="Telegram chat_id или MAX chat_id">
+    </label>
+    <p class="muted small">Для MAX: обычный числовой ID считается chat_id. Для личного диалога укажите user:123456. Для группового чата можно указать chat:123456. Достаточно совпадения одного ключевого слова.</p>
+    <button type="submit">Добавить правило</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}
