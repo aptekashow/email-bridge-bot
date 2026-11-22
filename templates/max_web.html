@@ -2,26 +2,36 @@
 {% block title %}MAX Web — Email Bridge{% endblock %}
 {% block content %}
 <h1>MAX Web</h1>
-<p class="muted">Подключение личного аккаунта MAX через браузер.</p>
+<p class="muted">Подключение личного аккаунта MAX через отдельный браузерный процесс.</p>
 
 <section class="panel">
-    <h2>Авторизация</h2>
-    <p class="muted">
-        Нажмите кнопку, чтобы открыть MAX Web и получить QR-код.
-        Затем отсканируйте его в приложении MAX на телефоне.
-    </p>
+    <h2>Состояние браузера</h2>
+    {% if browser_status.running %}
+        <p><span class="tag ok">Браузер запущен</span></p>
+    {% else %}
+        <p><span class="tag">Браузер не запущен</span></p>
+    {% endif %}
+    <p>{{ browser_status.message or 'Состояние пока неизвестно' }}</p>
+    {% if browser_status.title %}
+        <p class="muted small">Страница: {{ browser_status.title }}</p>
+    {% endif %}
+    {% if browser_status.error %}
+        <p class="flash error">{{ browser_status.error }}</p>
+    {% endif %}
     <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit">Открыть MAX Web / обновить QR</button>
     </form>
+    <p class="muted small">После нажатия подождите несколько секунд и обновите эту страницу.</p>
 </section>
 
 {% if screenshot_exists %}
 <section class="panel">
     <h2>Экран MAX Web</h2>
-    <img src="{{ url_for('max_web_qr') }}" alt="Экран авторизации MAX Web"
+    <img src="{{ url_for('max_web_qr') }}?v={{ browser_status.updated_at or '0' }}"
+         alt="Экран MAX Web"
          style="display:block;width:100%;max-width:800px;border-radius:12px;border:1px solid var(--line)">
-    <p class="muted small">Если QR-код не появился, нажмите обновить QR.</p>
+    <p class="muted small">Если отображается QR-код, отсканируйте его приложением MAX на телефоне.</p>
 </section>
 {% endif %}
 {% endblock %}
