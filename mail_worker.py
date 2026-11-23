@@ -2,11 +2,12 @@ import logging
 import os
 import signal
 import time
+from email.utils import parseaddr
 
 from imap_tools import MailBox, AND
 
 from app import create_app
-from models import db, Settings, Rule, ProcessedMail, DeliveryLog
+from models import db, Settings, Rule, ExcludedSender, ProcessedMail, DeliveryLog
 from notifications import send_telegram, send_max
 import proxy_manager
 
@@ -42,8 +43,12 @@ def process_mailbox_once():
             log.info("Настройки почты не заполнены")
             return
         rules = Rule.query.filter_by(enabled=True).all()
-        if not rules:
-            log.info("Нет включённых правил")
+        excluded_senders = {
+            item.email.casefold()
+            for item in ExcludedSender.query.all()
+        }
+        if not rules and not excluded_senders:
+            log.info("Нет включённых правил и исключений")
             return
 
         mailbox_name = f"{settings.email_user}:INBOX"
@@ -52,6 +57,12 @@ def process_mailbox_once():
                 settings.email_user, settings.email_pass, "INBOX"
             ) as mailbox:
                 for msg in mailbox.fetch(AND(seen=False), mark_seen=False):
+                    sender_email = (parseaddr(msg.from_ or "")[1] or msg.from_ or "").strip().casefold()
+                    if sender_email in excluded_senders:
+                        mailbox.flag(msg.uid, "\\Seen", True)
+                        log.info("Письмо от исключённого отправителя пропущено: %s", sender_email)
+                        continue
+
                     key = stable_message_key(mailbox_name, msg)
                     processed = ProcessedMail.query.filter_by(message_id=key).first()
                     if processed:
