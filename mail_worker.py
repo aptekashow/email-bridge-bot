@@ -53,9 +53,16 @@ def process_mailbox_once():
             ) as mailbox:
                 for msg in mailbox.fetch(AND(seen=False), mark_seen=False):
                     key = stable_message_key(mailbox_name, msg)
-                    if ProcessedMail.query.filter_by(message_id=key).first():
-                        mailbox.flag(msg.uid, "\\Seen", True)
-                        continue
+                    processed = ProcessedMail.query.filter_by(message_id=key).first()
+                    if processed:
+                        if processed.result == "no_match":
+                            # Legacy record from the old behavior: remove it and
+                            # re-evaluate the unread message against current rules.
+                            db.session.delete(processed)
+                            db.session.commit()
+                        else:
+                            mailbox.flag(msg.uid, "\\Seen", True)
+                            continue
 
                     subject = msg.subject or "(без темы)"
                     body = (msg.text or "").strip()
@@ -65,14 +72,17 @@ def process_mailbox_once():
 
                     # Intentionally search the body only. Subject is not included.
                     haystack = body.casefold()
-                    matching = [
-                        r for r in rules
-                        if any(
-                            keyword.casefold() in haystack
-                            for keyword in (part.strip() for part in r.keyword.split(","))
-                            if keyword
-                        )
-                    ]
+                    matching = []
+                    for rule in rules:
+                        # A rule fires when at least two distinct keywords
+                        # from its comma-separated list occur in the body.
+                        keywords = {
+                            part.strip().casefold()
+                            for part in rule.keyword.split(",")
+                            if part.strip()
+                        }
+                        if sum(keyword in haystack for keyword in keywords) >= 2:
+                            matching.append(rule)
                     errors = []
                     successes = 0
 
@@ -119,18 +129,27 @@ def process_mailbox_once():
                         )
                         continue
 
-                    db.session.add(ProcessedMail(
-                        message_id=key,
-                        result="sent" if matching else "no_match",
-                        details=f"Успешных доставок: {successes}",
-                    ))
-                    db.session.commit()
-                    mailbox.flag(msg.uid, "\\Seen", True)
                     if matching:
+                        db.session.add(ProcessedMail(
+                            message_id=key,
+                            result="sent",
+                            details=f"Успешных доставок: {successes}",
+                        ))
+                        db.session.commit()
+                        mailbox.flag(msg.uid, "\\Seen", True)
                         log.info(
                             "Письмо обработано: %s; доставок: %s",
                             subject,
                             successes,
+                        )
+                    else:
+                        # No rule matched: do not mark the message as seen and
+                        # do not persist a processed marker. It stays unread and
+                        # can be evaluated again after rules are changed.
+                        db.session.commit()
+                        log.info(
+                            "Нет двух совпавших ключевых слов ни в одном правиле: %s; письмо оставлено непрочитанным",
+                            subject,
                         )
         except Exception:
             db.session.rollback()
