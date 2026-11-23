@@ -1,4 +1,5 @@
 import os
+import re
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_wtf.csrf import CSRFProtect
@@ -7,7 +8,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from dotenv import load_dotenv
 
 from config import Config
-from models import db, Settings, Rule, Contact, DeliveryLog, ProcessedMail
+from models import db, Settings, Rule, Contact, ExcludedSender, DeliveryLog, ProcessedMail
 
 csrf = CSRFProtect()
 
@@ -92,6 +93,26 @@ def create_app(test_config=None):
     def settings():
         s = Settings.query.first()
         if request.method == "POST":
+            action = request.form.get("action", "")
+            if action == "add_exclusion":
+                email = request.form.get("excluded_email", "").strip().casefold()
+                if not re.fullmatch(r"[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+", email):
+                    flash("Укажите корректный адрес отправителя.", "error")
+                elif ExcludedSender.query.filter_by(email=email).first():
+                    flash("Этот адрес уже есть в исключениях.", "error")
+                else:
+                    db.session.add(ExcludedSender(email=email))
+                    db.session.commit()
+                    flash(f"Адрес {email} добавлен в исключения.", "success")
+                    return redirect(url_for("settings"))
+                return render_template("settings.html", s=s, excluded_senders=ExcludedSender.query.order_by(ExcludedSender.email).all())
+            if action == "delete_exclusion":
+                exclusion = db.get_or_404(ExcludedSender, int(request.form.get("exclusion_id", "0")))
+                deleted_email = exclusion.email
+                db.session.delete(exclusion)
+                db.session.commit()
+                flash(f"Адрес {deleted_email} удалён из исключений.", "success")
+                return redirect(url_for("settings"))
             try:
                 s.imap_server = request.form.get("imap_server", "").strip()
                 s.imap_port = int(request.form.get("imap_port", "993"))
@@ -112,7 +133,7 @@ def create_app(test_config=None):
             except (ValueError, TypeError) as exc:
                 db.session.rollback()
                 flash(str(exc), "error")
-        return render_template("settings.html", s=s)
+        return render_template("settings.html", s=s, excluded_senders=ExcludedSender.query.order_by(ExcludedSender.email).all())
 
     @app.route("/contacts", methods=["GET", "POST"])
     @login_required
