@@ -58,20 +58,23 @@ sed "s/@SERVICE_USER@/$APP_USER/g" "$APP_DIR/deploy/email-bridge-web.service" \
   > /etc/systemd/system/email-bridge-web.service
 sed "s/@SERVICE_USER@/$APP_USER/g" "$APP_DIR/deploy/email-bridge-worker.service" \
   > /etc/systemd/system/email-bridge-worker.service
+sed "s/@SERVICE_USER@/$APP_USER/g" "$APP_DIR/deploy/email-bridge-max.service" \
+  > /etc/systemd/system/email-bridge-max.service
 
 echo "[6/7] Права и запуск..."
 chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
 chmod 0600 "$APP_DIR/.env"
 systemctl daemon-reload
-systemctl enable --now email-bridge-web.service email-bridge-worker.service
+systemctl enable --now email-bridge-web.service email-bridge-worker.service email-bridge-max.service
 
 echo "[7/7] Проверка..."
 sleep 2
-systemctl --no-pager --full status email-bridge-web.service email-bridge-worker.service || true
+systemctl --no-pager --full status email-bridge-web.service email-bridge-worker.service email-bridge-max.service || true
 echo
 echo "Установка завершена."
 echo "Панель: http://IP_СЕРВЕРА:10000"
 echo "Проверка: curl http://127.0.0.1:10000/health"
-echo "Логи Worker: journalctl -u email-bridge-worker -f"
+echo "Логи почты: journalctl -u email-bridge-worker -f"
+echo "Логи MAX: journalctl -u email-bridge-max -f"
 echo
 echo "После входа в панель заполни IMAP и Telegram. SOCKS5-прокси загружаются автоматически."
