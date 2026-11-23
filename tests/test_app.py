@@ -3,7 +3,7 @@ import tempfile
 import unittest
 
 from app import create_app
-from models import db, Rule
+from models import db, Rule, Contact, ExcludedSender
 
 class AppTests(unittest.TestCase):
     def setUp(self):
@@ -32,6 +32,37 @@ class AppTests(unittest.TestCase):
     def login(self):
         return self.client.post("/login", data={"password": "test-password"}, follow_redirects=True)
 
+    def test_add_and_delete_excluded_sender(self):
+        self.login()
+        response = self.client.post("/settings", data={
+            "action": "add_exclusion",
+            "excluded_email": " KV.Service@Burmistr.ru ",
+        }, follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(ExcludedSender.query.count(), 1)
+            exclusion = ExcludedSender.query.first()
+            self.assertEqual(exclusion.email, "kv.service@burmistr.ru")
+            exclusion_id = exclusion.id
+
+        response = self.client.post("/settings", data={
+            "action": "delete_exclusion",
+            "exclusion_id": str(exclusion_id),
+        }, follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(ExcludedSender.query.count(), 0)
+
+    def test_reject_invalid_excluded_sender(self):
+        self.login()
+        response = self.client.post("/settings", data={
+            "action": "add_exclusion",
+            "excluded_email": "not-an-email",
+        }, follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(ExcludedSender.query.count(), 0)
+
     def test_health(self):
         self.assertEqual(self.client.get("/health").status_code, 200)
 
@@ -42,6 +73,9 @@ class AppTests(unittest.TestCase):
 
     def test_add_rule(self):
         self.login()
+        with self.app.app_context():
+            db.session.add(Contact(name="Test", channel="TG", recipient_id="123"))
+            db.session.commit()
         response = self.client.post("/rules", data={"keyword": "авария", "target": "TG", "recipient_id": "123"}, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         with self.app.app_context():
@@ -49,6 +83,9 @@ class AppTests(unittest.TestCase):
 
     def test_add_rule_with_multiple_keywords(self):
         self.login()
+        with self.app.app_context():
+            db.session.add(Contact(name="Test", channel="TG", recipient_id="123"))
+            db.session.commit()
         response = self.client.post("/rules", data={"keyword": "авария, протечка,  отопление ", "target": "TG", "recipient_id": "123"}, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         with self.app.app_context():
@@ -58,7 +95,11 @@ class AppTests(unittest.TestCase):
         self.login()
         with self.app.app_context():
             rule = Rule(keyword="авария", target="TG", recipient_id="123")
-            db.session.add(rule)
+            db.session.add_all([
+                Contact(name="Old", channel="TG", recipient_id="123"),
+                Contact(name="New", channel="MAX", recipient_id="chat:456"),
+                rule,
+            ])
             db.session.commit()
             rule_id = rule.id
         response = self.client.post(f"/rules/{rule_id}/edit", data={
