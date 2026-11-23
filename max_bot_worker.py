@@ -47,20 +47,40 @@ def save_marker(marker):
     temporary.replace(MARKER_FILE)
 
 
-def get_reply(text, app):
+def get_reply(text, app, user_id=None, chat_id=None):
     command = (text or "").strip()
     first = command.split(maxsplit=1)[0].lower() if command else ""
     first = first.split("@", 1)[0]
 
     if first in {"/start", "/help", "/commands"}:
+        ids = []
+        if user_id:
+            ids.append(f"User ID: {user_id}")
+        if chat_id:
+            ids.append(f"Chat ID: {chat_id}")
+        ids_text = "\n".join(ids)
+        if ids_text:
+            ids_text = "\n\nВаши ID:\n" + ids_text
         return (
             "Здравствуйте! Я бот «Заявки» — помощник Email Bridge.\n\n"
             "Команды:\n"
-            "/start — приветствие\n"
+            "/start — приветствие и ваши ID\n"
             "/help — список команд\n"
+            "/id — показать User ID и Chat ID\n"
             "/status — состояние настроек почты и правил\n\n"
             "Я принимаю сообщения и отправляю уведомления о письмах по заданным правилам."
+            + ids_text
         )
+
+    if first == "/id":
+        ids = []
+        if user_id:
+            ids.append(f"User ID: {user_id}")
+        if chat_id:
+            ids.append(f"Chat ID: {chat_id}")
+        if not ids:
+            return "Не удалось определить ID из события MAX. Попробуйте ещё раз."
+        return "Ваши ID в MAX:\n" + "\n".join(ids)
 
     if first == "/status":
         with app.app_context():
@@ -91,11 +111,9 @@ def handle_update(update, token, app):
 
     if update_type == "bot_started":
         user = update.get("user") or {}
-        message = get_reply("/start", app)
+        message_obj = {}
     elif update_type == "message_created":
         message_obj = update.get("message") or {}
-        body = message_obj.get("body") or {}
-        message = get_reply(body.get("text") or "", app)
         user = update.get("user") or message_obj.get("sender") or {}
         if user.get("is_bot"):
             return
@@ -105,8 +123,16 @@ def handle_update(update, token, app):
     user_id = user.get("user_id") or update.get("user_id")
     chat_id = update.get("chat_id")
     if not chat_id:
-        recipient = message_obj.get("recipient") if update_type == "message_created" else {}
-        chat_id = (recipient or {}).get("chat_id")
+        recipient = message_obj.get("recipient") or {}
+        chat_id = recipient.get("chat_id")
+
+    if update_type == "bot_started":
+        text = "/start"
+    else:
+        body = message_obj.get("body") or {}
+        text = body.get("text") or ""
+
+    message = get_reply(text, app, user_id=user_id, chat_id=chat_id)
 
     if user_id:
         recipient_id = f"user:{user_id}"
