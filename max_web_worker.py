@@ -126,8 +126,21 @@ def inspect_page(page):
                 tag: el.tagName.toLowerCase(),
                 role: el.getAttribute('role') || '',
                 aria: el.getAttribute('aria-label') || '',
+                labelledby: el.getAttribute('aria-labelledby') || '',
                 title: el.getAttribute('title') || '',
-                placeholder: el.getAttribute('placeholder') || ''
+                placeholder: el.getAttribute('placeholder') || '',
+                id: el.id || '',
+                name: el.getAttribute('name') || '',
+                type: el.getAttribute('type') || '',
+                testid: el.getAttribute('data-testid') || '',
+                class_name: (typeof el.className === 'string' ? el.className : '').slice(0, 180),
+                child_hints: Array.from(el.querySelectorAll('svg, [aria-label], [title], [data-testid]'))
+                    .slice(0, 6).map(child => ({
+                        tag: child.tagName.toLowerCase(),
+                        aria: child.getAttribute('aria-label') || '',
+                        title: child.getAttribute('title') || '',
+                        testid: child.getAttribute('data-testid') || ''
+                    }))
             })""")
             if any(item.values()):
                 items.append(item)
