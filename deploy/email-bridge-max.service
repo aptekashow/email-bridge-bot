@@ -1,0 +1,16 @@
+[Unit]
+Description=Email Bridge Bot MAX Updates Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+WorkingDirectory=/opt/email-bridge-bot
+EnvironmentFile=/opt/email-bridge-bot/.env
+ExecStart=/opt/email-bridge-bot/.venv/bin/python max_bot_worker.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
