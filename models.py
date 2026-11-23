@@ -21,6 +21,14 @@ class Rule(db.Model):
     recipient_id = db.Column(db.String(100), nullable=False)  # MAX: chat ID or user:ID
     enabled = db.Column(db.Boolean, nullable=False, default=True)
 
+class Contact(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    channel = db.Column(db.String(10), nullable=False)  # TG or MAX
+    recipient_id = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class ProcessedMail(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     message_id = db.Column(db.String(255), unique=True, nullable=False)
