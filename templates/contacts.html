@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Записная книжка контактов</h1>
+<p class="muted">Сохраняйте имя и ID получателя. Затем выбирайте контакт в выпадающем списке при создании правила.</p>
+<section class="panel">
+<h2>Добавить контакт</h2>
+<form method="post" action="{{ url_for('contacts') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label class="field"><span>Имя или название</span><input name="name" required maxlength="120" placeholder="Например: Диспетчерская, Иван Петров"></label>
+<label class="field"><span>Канал</span><select name="channel" required><option value="TG">Telegram</option><option value="MAX">MAX</option></select></label>
+<label class="field"><span>ID получателя</span><input name="recipient_id" required maxlength="100" placeholder="Например: 123456789 или user:123456"></label>
+<p class="muted small">Telegram: укажите chat_id. MAX: числовой ID чата либо user:ID для личного диалога, chat:ID для группового чата.</p>
+<button type="submit">Сохранить контакт</button>
+</form>
+</section>
+<section class="panel"><h2>Сохранённые контакты</h2>
+{% if contacts %}
+<div class="table-wrap"><table><thead><tr><th>Имя</th><th>Канал</th><th>ID</th><th>Действие</th></tr></thead><tbody>
+{% for c in contacts %}<tr><td>{{ c.name }}</td><td>{{ 'Telegram' if c.channel == 'TG' else 'MAX' }}</td><td>{{ c.recipient_id }}</td><td>
+<form method="post" action="{{ url_for('contacts') }}" onsubmit="return confirm('Удалить контакт из записной книжки?')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="delete"><input type="hidden" name="contact_id" value="{{ c.id }}"><button class="danger" type="submit">Удалить</button>
+</form></td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p class="muted">Контактов пока нет. Добавьте первый контакт выше.</p>{% endif %}
+</section>
+{% endblock %}
