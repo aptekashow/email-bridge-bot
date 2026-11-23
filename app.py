@@ -96,7 +96,7 @@ def create_app(test_config=None):
             action = request.form.get("action", "")
             if action == "add_exclusion":
                 email = request.form.get("excluded_email", "").strip().casefold()
-                if not re.fullmatch(r"[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+", email):
+                if not re.fullmatch(r"[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+", email):
                     flash("Укажите корректный адрес отправителя.", "error")
                 elif ExcludedSender.query.filter_by(email=email).first():
                     flash("Этот адрес уже есть в исключениях.", "error")
