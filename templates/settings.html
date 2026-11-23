@@ -1,1 +1,52 @@
-{% extends 'base.html' %}{% block content %}<h1>Настройки</h1><p class="muted">Секреты не отображаются в форме. Оставьте поле пустым, чтобы сохранить прежнее значение.</p><section class="panel"><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2>Почтовый сервер</h2><label class="field"><span>IMAP сервер</span><input name="imap_server" value="{{ s.imap_server }}" required></label><label class="field"><span>Порт</span><input name="imap_port" type="number" min="1" max="65535" value="{{ s.imap_port }}" required></label><label class="field"><span>Адрес электронной почты</span><input name="email_user" type="email" value="{{ s.email_user }}"></label><label class="field"><span>Пароль / пароль приложения</span><input name="email_pass" type="password" autocomplete="new-password" placeholder="Не изменять"></label><hr style="border-color:var(--line);margin:24px 0"><h2>Мессенджеры</h2><label class="field"><span>Токен Telegram Bot</span><input name="tg_token" type="password" autocomplete="new-password" placeholder="Не изменять"></label><label class="field"><span>Токен MAX Bot</span><input name="max_token" type="password" autocomplete="new-password" placeholder="Не изменять"></label><hr style="border-color:var(--line);margin:24px 0"><label class="field"><span>Интервал проверки (15–3600 секунд)</span><input name="check_interval" type="number" min="15" max="3600" value="{{ s.check_interval }}" required></label><button type="submit">Сохранить настройки</button></form></section>{% endblock %}
+{% extends 'base.html' %}
+{% block content %}
+<h1>Настройки</h1>
+<p class="muted">Секреты не отображаются в форме. Оставьте поле пустым, чтобы сохранить прежнее значение.</p>
+
+<section class="panel">
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<h2>Почтовый сервер</h2>
+<label class="field"><span>IMAP сервер</span><input name="imap_server" value="{{ s.imap_server }}" required></label>
+<label class="field"><span>Порт</span><input name="imap_port" type="number" min="1" max="65535" value="{{ s.imap_port }}" required></label>
+<label class="field"><span>Адрес электронной почты</span><input name="email_user" type="email" value="{{ s.email_user }}"></label>
+<label class="field"><span>Пароль / пароль приложения</span><input name="email_pass" type="password" autocomplete="new-password" placeholder="Не изменять"></label>
+<hr style="border-color:var(--line);margin:24px 0">
+<h2>Мессенджеры</h2>
+<label class="field"><span>Токен Telegram Bot</span><input name="tg_token" type="password" autocomplete="new-password" placeholder="Не изменять"></label>
+<label class="field"><span>Токен MAX Bot</span><input name="max_token" type="password" autocomplete="new-password" placeholder="Не изменять"></label>
+<hr style="border-color:var(--line);margin:24px 0">
+<label class="field"><span>Интервал проверки (15–3600 секунд)</span><input name="check_interval" type="number" min="15" max="3600" value="{{ s.check_interval }}" required></label>
+<button type="submit">Сохранить настройки</button>
+</form>
+</section>
+
+<section class="panel">
+<h2>Исключения отправителей</h2>
+<p class="muted">Письма с указанных адресов не проверяются правилами и не пересылаются. Такие письма автоматически помечаются прочитанными, чтобы не обрабатываться повторно.</p>
+<form method="post" class="actions">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="action" value="add_exclusion">
+<input name="excluded_email" type="email" required maxlength="255" placeholder="например: kv.service@burmistr.ru" style="flex:1;min-width:220px">
+<button type="submit">Добавить исключение</button>
+</form>
+{% if excluded_senders %}
+<div class="table-wrap" style="margin-top:16px">
+<table><thead><tr><th>Адрес отправителя</th><th>Действие</th></tr></thead><tbody>
+{% for item in excluded_senders %}
+<tr><td>{{ item.email }}</td><td>
+<form method="post" action="{{ url_for('settings') }}" onsubmit="return confirm('Удалить адрес из исключений?')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="action" value="delete_exclusion">
+<input type="hidden" name="exclusion_id" value="{{ item.id }}">
+<button class="danger" type="submit">Удалить</button>
+</form>
+</td></tr>
+{% endfor %}
+</tbody></table>
+</div>
+{% else %}
+<p class="muted">Исключений пока нет.</p>
+{% endif %}
+</section>
+{% endblock %}
