@@ -26,7 +26,7 @@
 <label class="field"><span>Куда отправлять</span><select name="target" class="contact-channel"><option value="TG" {{ 'selected' if edit_rule.target == 'TG' else '' }}>Telegram</option><option value="MAX" {{ 'selected' if edit_rule.target == 'MAX' else '' }}>MAX</option></select></label>
 <label class="field"><span>Получатель из записной книжки</span><select name="recipient_id" class="contact-recipient" required><option value="">Выберите контакт</option>
 {% set current_found = namespace(value=false) %}
-{% for c in contacts %}{% if c.channel == edit_rule.target and c.recipient_id == edit_rule.recipient_id %}{% set current_found.value = true %}{% endif %}<option value="{{ c.recipient_id }}" data-channel="{{ c.channel }}" {{ 'selected' if c.channel == edit_rule.target and c.recipient_id == edit_rule.recipient_id else '' }}>{{ c.name }} — {{ c.recipient_id }}</option>{% endfor %}
+{% for c in contacts %}{% if c.channel == edit_rule.target and c.recipient_id == edit_rule.recipient_id %}{% set current_found.value = true %}{% endif %}<option value="{{ c.recipient_id }}" data-channel="{{ c.channel }}" {{ 'selected' if c.channel == edit_rule.target and c.recipient_id == edit_rule.recipient_id else '' }}>{{ c.name }} — {{ c.recipient_id }} ({{ 'Telegram' if c.channel == 'TG' else 'MAX' }})</option>{% endfor %}
 {% if not current_found.value %}<option value="{{ edit_rule.recipient_id }}" data-channel="{{ edit_rule.target }}" selected>{{ edit_rule.recipient_id }} (старый получатель)</option>{% endif %}
 </select></label><button type="submit">Сохранить изменения</button> <a class="btn" href="{{ url_for('rules') }}">Отмена</a></form></section>
 {% else %}
