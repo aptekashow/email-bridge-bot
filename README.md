@@ -15,6 +15,7 @@
 - Переключение на следующий прокси при сетевой ошибке.
 - Кеш рабочего списка в `proxies_cache.txt`; он восстанавливается после перезапуска.
 - MAX Bot API отправляется напрямую; SOCKS5 используется только для Telegram.
+- MAX-бот принимает входящие сообщения и отвечает на `/start`, `/help`, `/status` и обычный текст через отдельную службу.
 - Журнал доставок и повторная обработка писем, если доставка завершилась ошибкой.
 
 ## Установка на новый сервер (Ubuntu 24.04)
@@ -50,13 +51,14 @@ sudo bash install.sh
 6. Добавь одно или несколько ключевых слов через запятую. Правило сработает, если хотя бы одно из них встретится в теле письма; тема не проверяется. Существующие правила можно редактировать.
 7. Отправь тестовое письмо и проверь историю доставок.
 
-Для MAX укажи токен MAX в настройках и добавь правило с каналом MAX. Получатель задаётся как `user:123`, `chat:123` или просто ID чата.
+Для MAX укажи токен MAX в настройках и добавь правило с каналом MAX. Отдельная служба `email-bridge-max` получает входящие события MAX через Long Polling и отвечает на `/start`, `/help`, `/status` и обычные сообщения. MAX ограничивает Long Polling и рекомендует Webhook для production; при переходе на Webhook Long Polling нужно отключить. Получатель задаётся как `user:123`, `chat:123` или просто ID чата.
 
 ## Службы и логи
 
 ```bash
-sudo systemctl status email-bridge-web email-bridge-worker
+sudo systemctl status email-bridge-web email-bridge-worker email-bridge-max
 sudo journalctl -u email-bridge-worker -f
+sudo journalctl -u email-bridge-max -f
 sudo journalctl -u email-bridge-web -f
 ```
 
@@ -91,6 +93,10 @@ python app.py
 ```bash
 source .venv/bin/activate
 python mail_worker.py
+
+# В отдельном терминале — входящие сообщения MAX:
+source .venv/bin/activate
+python max_bot_worker.py
 ```
 
 Проверка синтаксиса:
