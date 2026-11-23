@@ -64,7 +64,7 @@
     {% if diagnostics.controls %}
     <div class="table-wrap">
         <table>
-            <thead><tr><th>Элемент</th><th>Роль</th><th>Подпись</th><th>Подсказка</th></tr></thead>
+            <thead><tr><th>Элемент</th><th>Роль</th><th>Подпись</th><th>Подсказка</th><th>ID</th><th>Имя</th><th>Тип</th><th>data-testid</th><th>Вложенные метки</th></tr></thead>
             <tbody>
             {% for item in diagnostics.controls %}
                 <tr>
@@ -72,6 +72,11 @@
                     <td>{{ item.role }}</td>
                     <td>{{ item.aria or item.title }}</td>
                     <td>{{ item.placeholder }}</td>
+                    <td>{{ item.id }}</td>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.type }}</td>
+                    <td>{{ item.testid }}</td>
+                    <td>{% for child in item.child_hints %}{{ child.tag }}{% if child.aria %}: {{ child.aria }}{% elif child.title %}: {{ child.title }}{% elif child.testid %}: {{ child.testid }}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}</td>
                 </tr>
             {% endfor %}
             </tbody>
