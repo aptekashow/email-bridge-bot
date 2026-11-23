@@ -7,7 +7,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from dotenv import load_dotenv
 
 from config import Config
-from models import db, Settings, Rule, DeliveryLog, ProcessedMail
+from models import db, Settings, Rule, Contact, DeliveryLog, ProcessedMail
 
 csrf = CSRFProtect()
 
@@ -114,6 +114,31 @@ def create_app(test_config=None):
                 flash(str(exc), "error")
         return render_template("settings.html", s=s)
 
+    @app.route("/contacts", methods=["GET", "POST"])
+    @login_required
+    def contacts():
+        if request.method == "POST":
+            if request.form.get("action") == "delete":
+                contact = db.get_or_404(Contact, int(request.form.get("contact_id", "0")))
+                db.session.delete(contact)
+                db.session.commit()
+                flash("Контакт удалён. Уже созданные правила не изменены.", "success")
+                return redirect(url_for("contacts"))
+
+            name = request.form.get("name", "").strip()
+            channel = request.form.get("channel", "").upper()
+            recipient_id = request.form.get("recipient_id", "").strip()
+            if not name or len(name) > 120 or channel not in {"TG", "MAX"} or not recipient_id or len(recipient_id) > 100:
+                flash("Укажите название, канал и ID получателя.", "error")
+            elif Contact.query.filter_by(channel=channel, recipient_id=recipient_id).first():
+                flash("Такой ID уже есть в записной книжке для выбранного канала.", "error")
+            else:
+                db.session.add(Contact(name=name, channel=channel, recipient_id=recipient_id))
+                db.session.commit()
+                flash("Контакт добавлен", "success")
+                return redirect(url_for("contacts"))
+        return render_template("contacts.html", contacts=Contact.query.order_by(Contact.channel, Contact.name).all())
+
     @app.route("/rules", methods=["GET", "POST"])
     @login_required
     def rules():
@@ -122,14 +147,15 @@ def create_app(test_config=None):
             keyword = ", ".join(keywords)
             target = request.form.get("target", "").upper()
             recipient_id = request.form.get("recipient_id", "").strip()
-            if not keyword or len(keyword) > 200 or target not in {"TG", "MAX"} or not recipient_id:
-                flash("Проверьте ключевые слова, канал и получателя. Общая длина ключевых слов — до 200 символов.", "error")
+            contact = Contact.query.filter_by(channel=target, recipient_id=recipient_id).first()
+            if not keyword or len(keyword) > 200 or target not in {"TG", "MAX"} or not contact:
+                flash("Проверьте ключевые слова и выберите получателя из записной книжки.", "error")
             else:
                 db.session.add(Rule(keyword=keyword, target=target, recipient_id=recipient_id))
                 db.session.commit()
                 flash("Правило добавлено", "success")
                 return redirect(url_for("rules"))
-        return render_template("rules.html", rules=Rule.query.order_by(Rule.id.desc()).all())
+        return render_template("rules.html", rules=Rule.query.order_by(Rule.id.desc()).all(), contacts=Contact.query.order_by(Contact.channel, Contact.name).all())
 
     @app.route("/rules/<int:rule_id>/edit", methods=["GET", "POST"])
     @login_required
@@ -140,8 +166,10 @@ def create_app(test_config=None):
             target = request.form.get("target", "").upper()
             recipient_id = request.form.get("recipient_id", "").strip()
             keyword_value = ", ".join(keywords)
-            if not keyword_value or len(keyword_value) > 200 or target not in {"TG", "MAX"} or not recipient_id:
-                flash("Проверьте ключевые слова, канал и получателя. Общая длина ключевых слов — до 200 символов.", "error")
+            contact = Contact.query.filter_by(channel=target, recipient_id=recipient_id).first()
+            keep_legacy_recipient = target == rule.target and recipient_id == rule.recipient_id
+            if not keyword_value or len(keyword_value) > 200 or target not in {"TG", "MAX"} or not (contact or keep_legacy_recipient):
+                flash("Проверьте ключевые слова и выберите получателя из записной книжки.", "error")
             else:
                 rule.keyword = keyword_value
                 rule.target = target
@@ -149,7 +177,7 @@ def create_app(test_config=None):
                 db.session.commit()
                 flash("Правило обновлено", "success")
                 return redirect(url_for("rules"))
-        return render_template("rules.html", rules=Rule.query.order_by(Rule.id.desc()).all(), edit_rule=rule)
+        return render_template("rules.html", rules=Rule.query.order_by(Rule.id.desc()).all(), contacts=Contact.query.order_by(Contact.channel, Contact.name).all(), edit_rule=rule)
 
     @app.post("/rules/<int:rule_id>/toggle")
     @login_required
