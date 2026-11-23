@@ -29,6 +29,12 @@ class Contact(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class ExcludedSender(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class ProcessedMail(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     message_id = db.Column(db.String(255), unique=True, nullable=False)
