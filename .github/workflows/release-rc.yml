@@ -1,0 +1,56 @@
+name: Build RC release
+
+on:
+  push:
+    tags:
+      - "v*-rc*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate installer and Python sources
+        run: |
+          bash -n install.sh
+          python -m compileall -q .
+          python -m pip install --disable-pip-version-check -r requirements.txt
+          DATABASE_URL=sqlite:////tmp/email-bridge-rc-check.db SECRET_KEY=rc-check ADMIN_PASSWORD=rc-check-password python -c "from app import create_app; app=create_app({'TESTING': True}); print('Flask app import: OK')"
+
+      - name: Package release archive
+        id: package
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "${GITHUB_REF_TYPE}" == "branch" ]]; then
+            VERSION="$(cat VERSION)"
+          fi
+          mkdir -p dist
+          ARCHIVE="email-bridge-bot-${VERSION}.tar.gz"
+          git archive --format=tar.gz --prefix="email-bridge-bot-${VERSION}/" HEAD > "dist/${ARCHIVE}"
+          cd dist
+          sha256sum "${ARCHIVE}" > SHA256SUMS
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "archive=${ARCHIVE}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            "dist/${{ steps.package.outputs.archive }}" \
+            "dist/SHA256SUMS" \
+            --title "Email Bridge Bot ${{ steps.package.outputs.version }} (RC)" \
+            --notes "RC build for Ubuntu Server 24.04 LTS. Includes web panel, IMAP worker, Telegram delivery via SOCKS5, MAX notifications and MAX incoming command worker. See README.md for installation."
