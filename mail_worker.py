@@ -83,17 +83,24 @@ def process_mailbox_once():
 
                     # Intentionally search the body only. Subject is not included.
                     haystack = body.casefold()
-                    matching = []
+                    best_rule = None
+                    best_match_count = 1
                     for rule in rules:
-                        # A rule fires when at least two distinct keywords
+                        # A rule qualifies when at least two distinct keywords
                         # from its comma-separated list occur in the body.
                         keywords = {
                             part.strip().casefold()
                             for part in rule.keyword.split(",")
                             if part.strip()
                         }
-                        if sum(keyword in haystack for keyword in keywords) >= 2:
-                            matching.append(rule)
+                        match_count = sum(keyword in haystack for keyword in keywords)
+                        # Keep only the rule with the greatest number of matches.
+                        # On a tie, the first rule returned by the database wins.
+                        if match_count >= 2 and match_count > best_match_count:
+                            best_rule = rule
+                            best_match_count = match_count
+
+                    matching = [best_rule] if best_rule is not None else []
                     errors = []
                     successes = 0
 
