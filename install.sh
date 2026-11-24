@@ -42,6 +42,7 @@ ADMIN_PASSWORD=$ADMIN_PASSWORD
 HOST=0.0.0.0
 PORT=10000
 COOKIE_SECURE=0
+REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 EOF
   chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
   chmod 0600 "$APP_DIR/.env"
