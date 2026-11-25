@@ -8,7 +8,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from dotenv import load_dotenv
 
 from config import Config
-from models import db, Settings, Rule, Contact, ExcludedSender, DeliveryLog, ProcessedMail
+from models import db, Settings, Rule, Contact, AllowedSender, ExcludedSender, DeliveryLog, ProcessedMail
 
 csrf = CSRFProtect()
 
@@ -105,7 +105,26 @@ def create_app(test_config=None):
                     db.session.commit()
                     flash(f"Адрес {email} добавлен в исключения.", "success")
                     return redirect(url_for("settings"))
-                return render_template("settings.html", s=s, excluded_senders=ExcludedSender.query.order_by(ExcludedSender.email).all())
+                return render_template("settings.html", s=s, allowed_senders=AllowedSender.query.order_by(AllowedSender.email).all(), excluded_senders=ExcludedSender.query.order_by(ExcludedSender.email).all())
+            if action == "add_allowed_sender":
+                email = request.form.get("allowed_email", "").strip().casefold()
+                if not re.fullmatch(r"[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+", email):
+                    flash("Укажите корректный адрес отправителя.", "error")
+                elif AllowedSender.query.filter_by(email=email).first():
+                    flash("Этот адрес уже есть в списке проверки.", "error")
+                else:
+                    db.session.add(AllowedSender(email=email))
+                    db.session.commit()
+                    flash(f"Адрес {email} добавлен в список проверки.", "success")
+                    return redirect(url_for("settings"))
+                return render_template("settings.html", s=s, allowed_senders=AllowedSender.query.order_by(AllowedSender.email).all(), excluded_senders=ExcludedSender.query.order_by(ExcludedSender.email).all())
+            if action == "delete_allowed_sender":
+                allowed = db.get_or_404(AllowedSender, int(request.form.get("allowed_id", "0")))
+                deleted_email = allowed.email
+                db.session.delete(allowed)
+                db.session.commit()
+                flash(f"Адрес {deleted_email} удалён из списка проверки.", "success")
+                return redirect(url_for("settings"))
             if action == "delete_exclusion":
                 exclusion = db.get_or_404(ExcludedSender, int(request.form.get("exclusion_id", "0")))
                 deleted_email = exclusion.email
@@ -133,7 +152,7 @@ def create_app(test_config=None):
             except (ValueError, TypeError) as exc:
                 db.session.rollback()
                 flash(str(exc), "error")
-        return render_template("settings.html", s=s, excluded_senders=ExcludedSender.query.order_by(ExcludedSender.email).all())
+        return render_template("settings.html", s=s, allowed_senders=AllowedSender.query.order_by(AllowedSender.email).all(), excluded_senders=ExcludedSender.query.order_by(ExcludedSender.email).all())
 
     @app.route("/contacts", methods=["GET", "POST"])
     @login_required
