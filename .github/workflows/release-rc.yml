@@ -70,4 +70,5 @@ jobs:
             "dist/${{ steps.package.outputs.archive }}" \
             "dist/SHA256SUMS" \
             --title "Email Bridge Bot ${{ steps.package.outputs.version }} (RC)" \
-            --notes "RC build for Ubuntu Server 24.04 LTS. Includes web panel, IMAP worker, Telegram delivery via SOCKS5, MAX notifications and MAX incoming command worker. See README.md for installation."
+            --prerelease \
+            --notes "RC build for Ubuntu Server 24.04 LTS. Includes sender allowlist, Moscow-time display in history, web panel, IMAP worker, Telegram delivery via SOCKS5, MAX notifications and MAX incoming command worker. See README.md for installation."
