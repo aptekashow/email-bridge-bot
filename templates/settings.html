@@ -22,6 +22,38 @@
 </section>
 
 <section class="panel">
+</section>
+
+<section class="panel">
+<h2>Адреса для проверки правил</h2>
+<p class="muted">Если список заполнен, правила проверяются только для писем от этих отправителей. Письма от остальных адресов пропускаются и помечаются прочитанными. Если список пуст, проверяются письма от всех отправителей.</p>
+<form method="post" class="actions">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="action" value="add_allowed_sender">
+<input name="allowed_email" type="email" required maxlength="255" placeholder="например: alerts@example.com" style="flex:1;min-width:220px">
+<button type="submit">Добавить адрес</button>
+</form>
+{% if allowed_senders %}
+<div class="table-wrap" style="margin-top:16px">
+<table><thead><tr><th>Адрес отправителя</th><th>Действие</th></tr></thead><tbody>
+{% for item in allowed_senders %}
+<tr><td>{{ item.email }}</td><td>
+<form method="post" action="{{ url_for('settings') }}" onsubmit="return confirm('Удалить адрес из списка проверки?')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="action" value="delete_allowed_sender">
+<input type="hidden" name="allowed_id" value="{{ item.id }}">
+<button class="danger" type="submit">Удалить</button>
+</form>
+</td></tr>
+{% endfor %}
+</tbody></table>
+</div>
+{% else %}
+<p class="muted">Список пуст — проверяются все отправители.</p>
+{% endif %}
+</section>
+
+<section class="panel">
 <h2>Исключения отправителей</h2>
 <p class="muted">Письма с указанных адресов не проверяются правилами и не пересылаются. Такие письма автоматически помечаются прочитанными, чтобы не обрабатываться повторно.</p>
 <form method="post" class="actions">
