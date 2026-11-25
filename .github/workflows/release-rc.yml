@@ -66,9 +66,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            "dist/${{ steps.package.outputs.archive }}" \
-            "dist/SHA256SUMS" \
-            --title "Email Bridge Bot ${{ steps.package.outputs.version }} (RC)" \
-            --prerelease \
-            --notes "RC build for Ubuntu Server 24.04 LTS. Includes sender allowlist, Moscow-time display in history, web panel, IMAP worker, Telegram delivery via SOCKS5, MAX notifications and MAX incoming command worker. See README.md for installation."
+          TAG="${GITHUB_REF_NAME}"
+          TITLE="Email Bridge Bot ${{ steps.package.outputs.version }} (RC)"
+          NOTES="RC build for Ubuntu Server 24.04 LTS. Includes sender allowlist, Moscow-time display in history, web panel, IMAP worker, Telegram delivery via SOCKS5, MAX notifications and MAX incoming command worker. See README.md for installation."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              "dist/${{ steps.package.outputs.archive }}" \
+              "dist/SHA256SUMS" --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES" --prerelease
+          else
+            gh release create "$TAG" \
+              "dist/${{ steps.package.outputs.archive }}" \
+              "dist/SHA256SUMS" \
+              --title "$TITLE" \
+              --prerelease \
+              --notes "$NOTES"
+          fi
