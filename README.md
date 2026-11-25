@@ -39,7 +39,7 @@ sudo bash install.sh
 Скачай архив `email-bridge-bot-0.1.0-rc.2.tar.gz` со страницы Releases, распакуй его и запусти установщик:
 
 ```bash
-tar -xzf email-bridge-bot-0.1.0-rc.1.tar.gz
+tar -xzf email-bridge-bot-0.1.0-rc.2.tar.gz
 cd email-bridge-bot-0.1.0-rc.2
 sudo bash install.sh
 ```
