@@ -1,5 +1,7 @@
 import os
 import re
+from datetime import timezone
+from zoneinfo import ZoneInfo
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_wtf.csrf import CSRFProtect
@@ -11,11 +13,24 @@ from config import Config
 from models import db, Settings, Rule, Contact, AllowedSender, ExcludedSender, DeliveryLog, ProcessedMail
 
 csrf = CSRFProtect()
+MOSCOW_TZ = ZoneInfo("Europe/Moscow")
+
+
+def moscow_datetime(value, fmt="%d.%m.%Y %H:%M:%S"):
+    """Render UTC timestamps in the Moscow time zone."""
+    if value is None:
+        return "—"
+    # SQLite returns timezone-aware DateTime columns as naive datetimes.
+    # All timestamps in this application are written in UTC.
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(MOSCOW_TZ).strftime(fmt)
 
 def create_app(test_config=None):
     load_dotenv()
     app = Flask(__name__)
     app.config.from_object(Config)
+    app.jinja_env.filters["moscow_datetime"] = moscow_datetime
     if test_config:
         app.config.update(test_config)
     db.init_app(app)
