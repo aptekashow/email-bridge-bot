@@ -26,7 +26,14 @@ jobs:
           bash -n install.sh
           python -m compileall -q .
           python -m pip install --disable-pip-version-check -r requirements.txt
-          DATABASE_URL=sqlite:////tmp/email-bridge-rc-check.db SECRET_KEY=rc-check ADMIN_PASSWORD=rc-check-password python -c "from app import create_app; app=create_app({'TESTING': True}); print('Flask app import: OK')"
+          DATABASE_URL=sqlite:////tmp/email-bridge-rc-check.db SECRET_KEY=rc-check ADMIN_PASSWORD=rc-check-password python - <<'PY'
+          from datetime import datetime
+          from app import create_app
+          app = create_app({'TESTING': True})
+          rendered = app.jinja_env.filters['moscow_datetime'](datetime(2026, 1, 1, 0, 0))
+          assert rendered == '01.01.2026 03:00:00', rendered
+          print('Flask app import and Moscow time conversion: OK')
+          PY
 
       - name: Package release archive
         id: package
