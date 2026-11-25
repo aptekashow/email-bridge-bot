@@ -108,7 +108,7 @@ def create_app(test_config=None):
                 return render_template("settings.html", s=s, allowed_senders=AllowedSender.query.order_by(AllowedSender.email).all(), excluded_senders=ExcludedSender.query.order_by(ExcludedSender.email).all())
             if action == "add_allowed_sender":
                 email = request.form.get("allowed_email", "").strip().casefold()
-                if not re.fullmatch(r"[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+", email):
+                if not re.fullmatch(r"[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+", email):
                     flash("Укажите корректный адрес отправителя.", "error")
                 elif AllowedSender.query.filter_by(email=email).first():
                     flash("Этот адрес уже есть в списке проверки.", "error")
