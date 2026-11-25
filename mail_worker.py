@@ -7,7 +7,7 @@ from email.utils import parseaddr
 from imap_tools import MailBox, AND
 
 from app import create_app
-from models import db, Settings, Rule, ExcludedSender, ProcessedMail, DeliveryLog
+from models import db, Settings, Rule, AllowedSender, ExcludedSender, ProcessedMail, DeliveryLog
 from notifications import send_telegram, send_max
 import proxy_manager
 
@@ -43,6 +43,10 @@ def process_mailbox_once():
             log.info("Настройки почты не заполнены")
             return
         rules = Rule.query.filter_by(enabled=True).all()
+        allowed_senders = {
+            item.email.casefold()
+            for item in AllowedSender.query.all()
+        }
         excluded_senders = {
             item.email.casefold()
             for item in ExcludedSender.query.all()
@@ -61,6 +65,11 @@ def process_mailbox_once():
                     if sender_email in excluded_senders:
                         mailbox.flag(msg.uid, "\\Seen", True)
                         log.info("Письмо от исключённого отправителя пропущено: %s", sender_email)
+                        continue
+
+                    if allowed_senders and sender_email not in allowed_senders:
+                        mailbox.flag(msg.uid, "\\Seen", True)
+                        log.info("Отправитель не входит в список проверки, письмо пропущено: %s", sender_email)
                         continue
 
                     key = stable_message_key(mailbox_name, msg)
